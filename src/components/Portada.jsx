@@ -17,7 +17,7 @@ function Portada() {
     if (isHovered) return;
     const interval = setInterval(() => {
       setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
-    }, 4000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [isHovered, images.length]);
 
@@ -30,9 +30,27 @@ function Portada() {
   };
 
   return (
-    <section className="hero">
-      <div className="container hero-grid">
-        <div className="hero-copy">
+    <section 
+      className="hero hero-with-bg-carousel"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Background carousel slides */}
+      <div className="hero-bg-carousel">
+        {images.map((img, idx) => (
+          <div
+            key={idx}
+            className={`hero-bg-slide ${currentIndex === idx ? 'active' : ''}`}
+            style={{ backgroundImage: `url(${img.src})` }}
+            aria-label={img.alt}
+          />
+        ))}
+        {/* Dark gradient overlay for optimal text contrast */}
+        <div className="hero-bg-overlay" />
+      </div>
+
+      <div className="container hero-content-relative">
+        <div className="hero-copy hero-copy-full">
           <span className="eyebrow">SÚPER-APP COMUNITARIA</span>
           <h1>La comunidad se conecta directo.</h1>
           <p>
@@ -58,54 +76,36 @@ function Portada() {
             </div>
           </div>
         </div>
-        <div className="hero-image-panel">
-          <div 
-            className="hero-carousel"
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
-            <div 
-              className="hero-carousel-slides"
-              style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-            >
-              {images.map((img, idx) => (
-                <img 
-                  key={idx} 
-                  src={img.src} 
-                  alt={img.alt} 
-                  className="hero-carousel-slide" 
-                />
-              ))}
-            </div>
+      </div>
 
-            <button 
-              className="carousel-btn prev" 
-              onClick={handlePrev}
-              aria-label="Imagen anterior"
-            >
-              &#10094;
-            </button>
+      {/* Discrete Carousel controls overlay */}
+      <div className="hero-bg-controls">
+        <button 
+          className="carousel-btn prev" 
+          onClick={handlePrev}
+          aria-label="Imagen anterior"
+        >
+          &#10094;
+        </button>
 
-            <button 
-              className="carousel-btn next" 
-              onClick={handleNext}
-              aria-label="Siguiente imagen"
-            >
-              &#10095;
-            </button>
-
-            <div className="carousel-dots">
-              {images.map((_, idx) => (
-                <button
-                  key={idx}
-                  className={`carousel-dot ${currentIndex === idx ? 'active' : ''}`}
-                  onClick={() => setCurrentIndex(idx)}
-                  aria-label={`Ir a la imagen ${idx + 1}`}
-                />
-              ))}
-            </div>
-          </div>
+        <div className="carousel-dots">
+          {images.map((_, idx) => (
+            <button
+              key={idx}
+              className={`carousel-dot ${currentIndex === idx ? 'active' : ''}`}
+              onClick={() => setCurrentIndex(idx)}
+              aria-label={`Ir a la imagen ${idx + 1}`}
+            />
+          ))}
         </div>
+
+        <button 
+          className="carousel-btn next" 
+          onClick={handleNext}
+          aria-label="Siguiente imagen"
+        >
+          &#10095;
+        </button>
       </div>
     </section>
   );

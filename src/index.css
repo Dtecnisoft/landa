@@ -408,34 +408,81 @@ button {
   border-radius: 2rem;
 }
 
-.hero-carousel {
+/* Full Background Hero Carousel Styles */
+.hero-with-bg-carousel {
   position: relative;
-  width: 100%;
-  max-width: 580px;
-  border-radius: 1.75rem;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(10, 20, 35, 0.6);
-}
-
-.hero-carousel-slides {
+  min-height: 88vh;
   display: flex;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 100%;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6rem 0 5rem;
 }
 
-.hero-carousel-slide {
-  min-width: 100%;
-  height: auto;
-  object-fit: cover;
-  display: block;
-}
-
-.carousel-btn {
+.hero-bg-carousel {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.hero-bg-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 1.4s ease-in-out, transform 6s ease-out;
+  transform: scale(1.06);
+}
+
+.hero-bg-slide.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.hero-bg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg, 
+    rgba(5, 13, 25, 0.95) 0%, 
+    rgba(7, 17, 31, 0.88) 50%, 
+    rgba(7, 17, 31, 0.75) 100%
+  );
+  z-index: 2;
+}
+
+.hero-content-relative {
+  position: relative;
+  z-index: 3;
+}
+
+.hero-copy-full {
+  max-width: 800px;
+}
+
+.hero-bg-controls {
+  position: absolute;
+  bottom: 2rem;
+  right: 3rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 4;
+}
+
+.hero-bg-controls .carousel-btn {
+  position: static;
+  transform: none;
   background: rgba(7, 17, 31, 0.65);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -448,33 +495,21 @@ button {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 10;
   transition: all 0.2s ease;
   font-size: 1.1rem;
 }
 
-.carousel-btn:hover {
+.hero-bg-controls .carousel-btn:hover {
   background: rgba(94, 165, 255, 0.85);
   border-color: rgba(255, 255, 255, 0.6);
-  transform: translateY(-50%) scale(1.08);
+  transform: scale(1.1);
 }
 
-.carousel-btn.prev {
-  left: 12px;
-}
-
-.carousel-btn.next {
-  right: 12px;
-}
-
-.carousel-dots {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
+.hero-bg-controls .carousel-dots {
+  position: static;
+  transform: none;
   display: flex;
   gap: 8px;
-  z-index: 10;
   background: rgba(0, 0, 0, 0.4);
   padding: 6px 12px;
   border-radius: 999px;
@@ -497,6 +532,27 @@ button {
   background: #38bdf8;
   width: 24px;
   border-radius: 999px;
+}
+
+@media (max-width: 768px) {
+  .hero-with-bg-carousel {
+    min-height: auto;
+    padding: 5rem 0 6rem;
+  }
+
+  .hero-bg-overlay {
+    background: linear-gradient(
+      180deg, 
+      rgba(5, 13, 25, 0.94) 0%, 
+      rgba(7, 17, 31, 0.90) 100%
+    );
+  }
+
+  .hero-bg-controls {
+    right: 50%;
+    transform: translateX(50%);
+    bottom: 1.2rem;
+  }
 }
 
 .eyebrow {
