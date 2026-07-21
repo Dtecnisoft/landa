@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import imgP from '../assets/images/p.jpeg';
 import imgP2 from '../assets/images/p2.jpeg';
-import imgLandaP from '../assets/images/LandaP.jpeg';
+import imgLandaP from '../assets/images/p3.png';
 
 function Portada() {
   const images = [
