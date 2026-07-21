@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Encabezado from './components/Encabezado';
 import Portada from './components/Portada';
 import Caracteristicas from './components/Caracteristicas';
@@ -28,7 +28,7 @@ function HomePage() {
 
 function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <div className="app-shell">
         <Encabezado />
         <main>
@@ -50,7 +50,7 @@ function App() {
         </main>
         <PiePagina />
       </div>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
 
