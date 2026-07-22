@@ -5,7 +5,7 @@ import imgLandaP from '../assets/images/p3.png';
 
 function Portada() {
   const images = [
-    { src: imgP, alt: 'Landa App - Servicios comunitarios' },
+    { src: imgP, alt: 'Landa App - Servicios locales' },
     { src: imgP2, alt: 'Landa App - Conexión directa' },
     { src: imgLandaP, alt: 'Landa App - Movilidad y comida' }
   ];
@@ -30,7 +30,7 @@ function Portada() {
   };
 
   return (
-    <section 
+    <section
       className="hero hero-with-bg-carousel"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -51,11 +51,10 @@ function Portada() {
 
       <div className="container hero-content-relative">
         <div className="hero-copy hero-copy-full">
-          <span className="eyebrow">SÚPER-APP COMUNITARIA</span>
-          <h1>La comunidad se conecta directo.</h1>
+          <span className="eyebrow">SÚPER-APP DE CONEXIÓN TOTAL</span>
+          <h1>Encuentra. Conecta. Resuelve.</h1>
           <p>
-            Landa es la súper-app comunitaria de última generación diseñada para conectar personas, comercios y servicios locales.
-            Nuestra misión es empoderar a la comunidad facilitando la interacción directa, segura y transparente, reduciendo las comisiones excesivas de intermediarios y recompensando a los usuarios por su participación activa.
+            Revolucionamos la forma en que pides, compras y te mueves en tu ciudad. Todo lo que necesitas en la palma de tu mano.
           </p>
           <div className="hero-actions">
             <a href="#" className="btn btn-primary">Descargar la app</a>
@@ -68,7 +67,7 @@ function Portada() {
             </div>
             <div>
               <span>100%</span>
-              <small className="metric-label">Seguridad Comunitaria</small>
+              <small className="metric-label">Seguridad & Confianza</small>
             </div>
             <div>
               <span>+Recompensas</span>
@@ -80,8 +79,8 @@ function Portada() {
 
       {/* Discrete Carousel controls overlay */}
       <div className="hero-bg-controls">
-        <button 
-          className="carousel-btn prev" 
+        <button
+          className="carousel-btn prev"
           onClick={handlePrev}
           aria-label="Imagen anterior"
         >
@@ -99,8 +98,8 @@ function Portada() {
           ))}
         </div>
 
-        <button 
-          className="carousel-btn next" 
+        <button
+          className="carousel-btn next"
           onClick={handleNext}
           aria-label="Siguiente imagen"
         >
