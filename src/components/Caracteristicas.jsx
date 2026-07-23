@@ -1,6 +1,6 @@
 import imgCarro from '../assets/images/carro.jpeg';
 import imgRestaurantes from '../assets/images/r.png';
-import imgSocial from '../assets/images/s2.jpeg';
+import imgSocial from '../assets/images/social2.jpeg';
 
 const features = [
   {

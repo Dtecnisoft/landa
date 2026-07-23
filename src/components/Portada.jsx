@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import imgP from '../assets/images/p.jpeg';
 import imgP2 from '../assets/images/p2.jpeg';
 import imgLandaP from '../assets/images/p3.png';
+import imgV from '../assets/images/v2.png';
 
 function Portada() {
   const images = [
@@ -35,7 +36,7 @@ function Portada() {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Background carousel slides */}
+      {/* Background carousel slides (Desktop) */}
       <div className="hero-bg-carousel">
         {images.map((img, idx) => (
           <div
@@ -45,9 +46,17 @@ function Portada() {
             aria-label={img.alt}
           />
         ))}
-        {/* Dark gradient overlay for optimal text contrast */}
-        <div className="hero-bg-overlay" />
       </div>
+
+      {/* Static mobile background image (v.jpeg) */}
+      <div
+        className="hero-bg-mobile"
+        style={{ backgroundImage: `url(${imgV})` }}
+        aria-label="Landa App - Portada móvil"
+      />
+
+      {/* Dark gradient overlay for optimal text contrast */}
+      <div className="hero-bg-overlay" />
 
       <div className="container hero-content-relative">
         <div className="hero-copy hero-copy-full">
@@ -77,7 +86,7 @@ function Portada() {
         </div>
       </div>
 
-      {/* Discrete Carousel controls overlay */}
+      {/* Discrete Carousel controls overlay (Desktop) */}
       <div className="hero-bg-controls">
         <button
           className="carousel-btn prev"

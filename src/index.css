@@ -342,8 +342,10 @@ button {
 
 @media (max-width: 768px) {
   .header-logo {
-    height: 48px;
-    /* Compact on mobile devices */
+    height: 80px;
+    /* Prominent and clear on mobile devices */
+    max-height: 12vw;
+    min-height: 60px;
   }
 
   .menu-toggle {
@@ -450,6 +452,19 @@ button {
   transform: scale(1);
 }
 
+.hero-bg-mobile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 1;
+  display: none;
+}
+
 .hero-bg-overlay {
   position: absolute;
   top: 0;
@@ -536,22 +551,90 @@ button {
   border-radius: 999px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .hero-with-bg-carousel {
-    min-height: auto;
-    padding: 5rem 0 6rem;
+    min-height: calc(100vh - 60px);
+    min-height: calc(100dvh - 60px);
+    padding: 5.5rem 1rem 4rem;
+  }
+
+  .hero-bg-carousel {
+    display: none !important;
+  }
+
+  .hero-bg-controls {
+    display: none !important;
+  }
+
+  .hero-bg-mobile {
+    display: block !important;
   }
 
   .hero-bg-overlay {
     background: linear-gradient(180deg,
-        rgba(5, 13, 25, 0.94) 0%,
-        rgba(7, 17, 31, 0.90) 100%);
+        rgba(5, 13, 25, 0.90) 0%,
+        rgba(7, 17, 31, 0.82) 50%,
+        rgba(7, 17, 31, 0.94) 100%);
   }
 
-  .hero-bg-controls {
-    right: 50%;
-    transform: translateX(50%);
-    bottom: 1.2rem;
+  .hero-copy-full {
+    text-align: center;
+    margin: 0 auto;
+  }
+
+  .hero-actions {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-with-bg-carousel {
+    padding: 5rem 0.75rem 3rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 7.5vw, 2.75rem);
+  }
+
+  .hero p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+  }
+
+  .hero-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .hero-metrics div {
+    padding: 0.75rem 0.25rem;
+    border-radius: 0.9rem;
+  }
+
+  .hero-metrics span {
+    font-size: clamp(0.95rem, 3.8vw, 1.25rem);
+  }
+
+  .metric-label {
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .hero-metrics {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
 }
 
