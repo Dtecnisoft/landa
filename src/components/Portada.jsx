@@ -71,8 +71,8 @@ function Portada() {
           </div>
           <div className="hero-metrics">
             <div>
-              <span>0%</span>
-              <small className="metric-label">Comisiones en Domicilios</small>
+              <span>10%</span>
+              <small className="metric-label">Comisiones en Landa</small>
             </div>
             <div>
               <span>100%</span>
