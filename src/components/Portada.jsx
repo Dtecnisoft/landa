@@ -61,12 +61,12 @@ function Portada() {
       <div className="container hero-content-relative">
         <div className="hero-copy hero-copy-full">
           <span className="eyebrow">SÚPER-APP DE CONEXIÓN TOTAL</span>
-          <h1>Encuentra. Conecta. Resuelve.</h1>
+          <h1>Encuentra. Conecta. Gana.</h1>
           <p>
             Revolucionamos la forma en que pides, compras y te mueves en tu ciudad. Todo lo que necesitas en la palma de tu mano.
           </p>
           <div className="hero-actions">
-            <a href="#" className="btn btn-primary">Descargar la app</a>
+            <a href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing" className="btn btn-primary">Descargar la app</a>
             <a href="#" className="btn btn-secondary">Cómo funciona</a>
           </div>
           <div className="hero-metrics">

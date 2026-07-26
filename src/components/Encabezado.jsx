@@ -164,9 +164,9 @@ function Encabezado() {
               )}
             </div>
 
-            <Link to="/contacto" className="btn btn-primary header-cta mobile-only-cta" onClick={closeMenu}>
+            <a href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing" className="btn btn-primary header-cta mobile-only-cta" onClick={closeMenu}>
               Descargar App
-            </Link>
+            </a>
           </nav>
 
           {/* Desktop Actions */}
@@ -225,9 +225,9 @@ function Encabezado() {
               </div>
             )}
 
-            <Link to="/contacto" className="btn btn-primary header-cta desktop-cta">
+            <a href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing" className="btn btn-primary header-cta desktop-cta">
               Descargar App
-            </Link>
+            </a>
           </div>
         </div>
       </header>
