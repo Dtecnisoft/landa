@@ -2,15 +2,161 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../context/ToastContext';
+import { isVideoUrl, getOptimizedVideoUrl } from '../services/cloudinaryService';
 
 const FOOD_TYPE_CHIPS = [
-  { id: 'all', label: 'Todos los Sabores', icon: '🍽️' },
-  { id: 'hamburguesa', label: 'Burgers & Comida Rápida', icon: '🍔' },
-  { id: 'pizza', label: 'Pizzas & Pastas', icon: '🍕' },
-  { id: 'asados', label: 'Asados & Carnes', icon: '🥩' },
-  { id: 'saludable', label: 'Saludable & Ensaladas', icon: '🥗' },
-  { id: 'postres', label: 'Repostería & Café', icon: '🍰' },
+  {
+    id: 'all',
+    label: 'Todos los Sabores',
+    image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=200&auto=format&fit=crop',
+    icon: '🍽️',
+    keywords: [],
+  },
+  {
+    id: 'burgers',
+    label: 'Burgers & Comida Rápida',
+    image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80&w=200&auto=format&fit=crop',
+    icon: '🍔',
+    keywords: ['burger', 'hamburguesa', 'rápida', 'rapida', 'perro', 'fast food', 'criolla', 'combo'],
+  },
+  {
+    id: 'pizza',
+    label: 'Pizzas & Pastas',
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=200&auto=format&fit=crop',
+    icon: '🍕',
+    keywords: ['pizza', 'pasta', 'italiana', 'napolitana', 'masa madre'],
+  },
+  {
+    id: 'asados',
+    label: 'Asados & Carnes',
+    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=200&auto=format&fit=crop',
+    icon: '🥩',
+    keywords: ['asado', 'carne', 'parrilla', 'bbq', 'churrasco', 'carbón', 'carbon'],
+  },
+  {
+    id: 'saludable',
+    label: 'Saludable & Ensaladas',
+    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=200&auto=format&fit=crop',
+    icon: '🥗',
+    keywords: ['saludable', 'ensalada', 'fit', 'veggie', 'vegetariana', 'sushi', 'bowl', 'orgánico', 'organico'],
+  },
+  {
+    id: 'postres',
+    label: 'Repostería & Café',
+    image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=200&auto=format&fit=crop',
+    icon: '🍰',
+    keywords: ['postre', 'repostería', 'reposteria', 'café', 'cafe', 'panadería', 'panaderia', 'dulce', 'helado', 'torta'],
+  },
 ];
+
+function formatPrice(val) {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(val || 0);
+}
+
+function getDemoDishesForRestaurant(rest) {
+  const type = (rest?.food_type || rest?.name || '').toLowerCase();
+
+  if (type.includes('pizza')) {
+    return [
+      {
+        id: 'd-1',
+        name: 'Pizza Napolitana Especial',
+        description: 'Masa madre, salsa artesanal de tomate fresco, queso mozzarella fundido y albahaca.',
+        price: 35000,
+        category: 'pizza',
+        image_url: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=400&auto=format&fit=crop',
+      },
+      {
+        id: 'd-2',
+        name: 'Pizza Pepperoni Crunch',
+        description: 'Doble porción de pepperoni crujiente, mezcla de quesos cheddar y mozzarella.',
+        price: 39900,
+        category: 'pizza',
+        image_url: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?q=80&w=400&auto=format&fit=crop',
+      },
+    ];
+  } else if (type.includes('asado') || type.includes('carne') || type.includes('parrilla')) {
+    return [
+      {
+        id: 'd-3',
+        name: 'Picada Mixta Familiar (4 Personas)',
+        description: 'Carne de res, lomo de cerdo, chorizo artesanal, chicharrón crocante, papa criolla y arepitas.',
+        price: 68000,
+        category: 'asados',
+        image_url: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&auto=format&fit=crop',
+      },
+      {
+        id: 'd-4',
+        name: 'Baby Beef 350g al Carbón',
+        description: 'Corte de lomo tierno a la parrilla con mantequilla de hierbas, acompañado de ensalada y papas.',
+        price: 42000,
+        category: 'asados',
+        image_url: 'https://images.unsplash.com/photo-1558030006-450675393462?q=80&w=400&auto=format&fit=crop',
+      },
+    ];
+  } else if (type.includes('saludable') || type.includes('ensalada') || type.includes('sushi')) {
+    return [
+      {
+        id: 'd-5',
+        name: 'Poke Bowl Salmón & Aguacate',
+        description: 'Base de arroz sushi, salmón fresco, aguacate, edamame, mango y salsa soya ajonjolí.',
+        price: 32000,
+        category: 'saludable',
+        image_url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=400&auto=format&fit=crop',
+      },
+      {
+        id: 'd-6',
+        name: 'Ensalada César con Pollo al Grill',
+        description: 'Pechuga de pollo a la plancha, lechuga romana, crotones crujientes, queso parmesano y aderezo césar.',
+        price: 26500,
+        category: 'saludable',
+        image_url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=400&auto=format&fit=crop',
+      },
+    ];
+  } else if (type.includes('postre') || type.includes('café') || type.includes('panader')) {
+    return [
+      {
+        id: 'd-7',
+        name: 'Cheesecake de Frutos Rojos',
+        description: 'Cremoso pastel de queso al estilo artesanal con reducción de moras y arándanos silvestres.',
+        price: 16000,
+        category: 'postres',
+        image_url: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=400&auto=format&fit=crop',
+      },
+      {
+        id: 'd-8',
+        name: 'Café Cappuccino de Origen + Croissant',
+        description: 'Espreso doble con leche cremada al vapor acompañado de croissant caliente de mantequilla.',
+        price: 12500,
+        category: 'postres',
+        image_url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?q=80&w=400&auto=format&fit=crop',
+      },
+    ];
+  }
+
+  return [
+    {
+      id: 'd-9',
+      name: 'Hamburguesa Landa Doble Queso',
+      description: 'Doble carne de res artesanal 180g, queso cheddar fundido, tocineta ahumada y salsa especial de la casa.',
+      price: 26900,
+      category: 'burgers',
+      image_url: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80&w=400&auto=format&fit=crop',
+    },
+    {
+      id: 'd-10',
+      name: 'Combo Perro Caliente Especial + Papas',
+      description: 'Salchicha suiza jumbo, tocineta, queso mozarella, papita fosforito, salsas de la casa y papas a la francesa.',
+      price: 21000,
+      category: 'burgers',
+      image_url: 'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?q=80&w=400&auto=format&fit=crop',
+    },
+  ];
+}
 
 function Restaurantes() {
   const navigate = useNavigate();
@@ -21,6 +167,40 @@ function Restaurantes() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedRestaurantModal, setSelectedRestaurantModal] = useState(null);
+  const [modalDishes, setModalDishes] = useState([]);
+  const [loadingModalDishes, setLoadingModalDishes] = useState(false);
+
+  // Load Dishes for Selected Restaurant Modal
+  useEffect(() => {
+    if (!selectedRestaurantModal) {
+      setModalDishes([]);
+      return;
+    }
+
+    const loadModalDishes = async () => {
+      setLoadingModalDishes(true);
+      try {
+        const { data, error } = await supabase
+          .from('dishes')
+          .select('*')
+          .eq('restaurant_id', selectedRestaurantModal.id)
+          .order('created_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          setModalDishes(data);
+        } else {
+          setModalDishes(getDemoDishesForRestaurant(selectedRestaurantModal));
+        }
+      } catch (e) {
+        console.error('Error loading restaurant dishes:', e);
+        setModalDishes(getDemoDishesForRestaurant(selectedRestaurantModal));
+      } finally {
+        setLoadingModalDishes(false);
+      }
+    };
+
+    loadModalDishes();
+  }, [selectedRestaurantModal]);
 
   // Load Real-time Restaurants from Supabase
   const loadRestaurants = useCallback(async () => {
@@ -42,43 +222,87 @@ function Restaurantes() {
         setRestaurants([
           {
             id: 'demo-rest-1',
-            name: 'Sazón de Barrio',
-            food_type: 'Hamburguesas & Comida Criolla',
-            address: 'Calle 10 # 4-20',
-            city: 'Cali',
-            phone: '315 882 9910',
+            name: 'Hamburguesería & Grill La Estación',
+            food_type: 'Burgers & Comida Rápida',
+            address: 'Calle 10 # 7-35, Centro',
+            city: 'Jamundí',
+            phone: '+57 315 882 9910',
             avatar: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80&w=400&auto=format&fit=crop',
             status: 'approved',
+            rating: 4.9,
+            reviewsCount: 184,
+            deliveryTime: '25 - 35 min',
+            deliveryFee: '$ 3.500 COP',
           },
           {
             id: 'demo-rest-2',
-            name: 'Pizzería Don Mario',
-            food_type: 'Pizza & Masa Madre',
-            address: 'Carrera 15 # 8-32',
+            name: 'Pizzería Don Mario - Masa Madre',
+            food_type: 'Pizzas & Pastas Artesanales',
+            address: 'Carrera 15 # 8-32, El Peñón',
             city: 'Cali',
-            phone: '310 443 1120',
+            phone: '+57 310 443 1120',
             avatar: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=400&auto=format&fit=crop',
             status: 'approved',
+            rating: 4.8,
+            reviewsCount: 210,
+            deliveryTime: '30 - 45 min',
+            deliveryFee: '$ 4.000 COP',
           },
           {
             id: 'demo-rest-3',
             name: 'La Parrilla de Doña Inés',
             food_type: 'Asados & Carnes al Carbón',
             address: 'Av. Circunvalar # 12-05',
-            city: 'Cali',
-            phone: '320 998 7744',
+            city: 'Jamundí',
+            phone: '+57 320 998 7744',
             avatar: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&auto=format&fit=crop',
             status: 'approved',
+            rating: 4.9,
+            reviewsCount: 156,
+            deliveryTime: '35 - 50 min',
+            deliveryFee: '$ 3.500 COP',
           },
           {
             id: 'demo-rest-4',
-            name: 'Molino Café & Panadería',
-            food_type: 'Repostería & Café de Origen',
-            address: 'Calle 5 # 22-10',
+            name: 'Sushi Roll & Poke Bowl',
+            food_type: 'Saludable & Sushi',
+            address: 'Calle 12 # 5-18, Barrio Alfaguara',
+            city: 'Jamundí',
+            phone: '+57 318 456 7890',
+            avatar: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=400&auto=format&fit=crop',
+            status: 'approved',
+            rating: 4.7,
+            reviewsCount: 98,
+            deliveryTime: '25 - 40 min',
+            deliveryFee: '$ 3.500 COP',
+          },
+          {
+            id: 'demo-rest-5',
+            name: 'Tacos & Antojitos El Mariachi',
+            food_type: 'Burgers & Comida Rápida',
+            address: 'Cra 10 # 14-20, Las Flores',
+            city: 'Jamundí',
+            phone: '+57 312 345 6789',
+            avatar: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?q=80&w=400&auto=format&fit=crop',
+            status: 'approved',
+            rating: 4.8,
+            reviewsCount: 132,
+            deliveryTime: '20 - 35 min',
+            deliveryFee: '$ 3.000 COP',
+          },
+          {
+            id: 'demo-rest-6',
+            name: 'Molino Café & Repostería de Origen',
+            food_type: 'Repostería & Café',
+            address: 'Calle 5 # 22-10, Granada',
             city: 'Cali',
-            phone: '300 112 3388',
+            phone: '+57 300 112 3388',
             avatar: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=400&auto=format&fit=crop',
             status: 'approved',
+            rating: 4.9,
+            reviewsCount: 245,
+            deliveryTime: '20 - 30 min',
+            deliveryFee: '$ 3.800 COP',
           },
         ]);
       }
@@ -132,13 +356,24 @@ function Restaurantes() {
     const type = (r.food_type || '').toLowerCase();
     const city = (r.city || '').toLowerCase();
 
+    // 1. Search query filter
     if (q.length > 0 && !name.includes(q) && !type.includes(q) && !city.includes(q)) {
       return false;
     }
 
+    // 2. Category chip filter
     if (selectedFilter !== 'all') {
-      if (!type.includes(selectedFilter) && !name.toLowerCase().includes(selectedFilter)) {
-        return false;
+      const activeChip = FOOD_TYPE_CHIPS.find((c) => c.id === selectedFilter);
+      if (activeChip && activeChip.keywords && activeChip.keywords.length > 0) {
+        const matchesKeyword = activeChip.keywords.some(
+          (kw) => type.includes(kw) || name.includes(kw)
+        );
+        if (!matchesKeyword) return false;
+      } else {
+        const cleanFilter = selectedFilter.toLowerCase();
+        if (!type.includes(cleanFilter) && !name.includes(cleanFilter)) {
+          return false;
+        }
       }
     }
 
@@ -182,13 +417,25 @@ function Restaurantes() {
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.25rem' }}>
-            <button
+            <a
+              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              target="_blank"
+              rel="noopener noreferrer"
               className="chip-btn"
-              onClick={() => showToast('¡Descarga la App Landa en Google Play Store o App Store para realizar tus pedidos!', 'info', 'Descarga la App')}
-              style={{ background: '#ffffff', color: '#ea580c', fontWeight: 900, padding: '0.75rem 1.25rem', borderRadius: '12px' }}
+              style={{
+                background: '#ffffff',
+                color: '#ea580c',
+                fontWeight: 900,
+                padding: '0.75rem 1.25rem',
+                borderRadius: '12px',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+              onClick={() => showToast('Abriendo enlace de descarga Landa App Móvil...', 'info', 'Descarga App')}
             >
               📲 Descargar App para Pedir
-            </button>
+            </a>
             <button
               className="chip-btn"
               onClick={handleGoToManagement}
@@ -221,7 +468,7 @@ function Restaurantes() {
           </div>
 
           {/* CHIP FILTERS */}
-          <div className="restaurant-tabs-row" style={{ overflowX: 'auto', paddingBottom: '0.2rem' }}>
+          <div className="restaurant-tabs-row" style={{ overflowX: 'auto', paddingBottom: '0.2rem', display: 'flex', gap: '0.6rem' }}>
             {FOOD_TYPE_CHIPS.map((chip) => {
               const isActive = selectedFilter === chip.id;
               return (
@@ -231,11 +478,29 @@ function Restaurantes() {
                   onClick={() => setSelectedFilter(chip.id)}
                   style={{
                     borderColor: isActive ? '#f97316' : 'transparent',
-                    color: isActive ? '#f97316' : '#94a3b8',
+                    color: isActive ? '#ffffff' : '#94a3b8',
+                    background: isActive ? 'rgba(249, 115, 22, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.55rem',
+                    padding: '0.5rem 0.9rem',
+                    borderRadius: '20px',
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  <span className="tab-icon">{chip.icon}</span>
-                  <span className="tab-label">{chip.label}</span>
+                  <img
+                    src={chip.image}
+                    alt={chip.label}
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: isActive ? '2px solid #f97316' : '1px solid rgba(255,255,255,0.2)',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    }}
+                  />
+                  <span className="tab-label" style={{ fontWeight: isActive ? 800 : 600 }}>{chip.label}</span>
                 </button>
               );
             })}
@@ -305,43 +570,59 @@ function Restaurantes() {
                     display: 'flex',
                     flexDirection: 'column',
                     border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '18px',
+                    overflow: 'hidden',
+                    background: '#0f172a',
                     transition: 'transform 0.25s ease, border-color 0.25s ease',
                   }}
                 >
-                  <div style={{ position: 'relative', width: '100%', height: '170px', borderRadius: '14px', overflow: 'hidden', marginBottom: '0.85rem' }}>
+                  <div style={{ position: 'relative', width: '100%', height: '175px', overflow: 'hidden' }}>
                     <img
                       src={rest.avatar || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop'}
                       alt={rest.name}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
-                    <span style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(16, 185, 129, 0.9)', color: '#ffffff', padding: '0.2rem 0.6rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800 }}>
+                    <span style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(16, 185, 129, 0.95)', color: '#ffffff', padding: '0.25rem 0.65rem', borderRadius: '8px', fontSize: '0.74rem', fontWeight: 800, zIndex: 2 }}>
                       ✓ VERIFICADO
+                    </span>
+                    <span style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(15, 23, 42, 0.88)', backdropFilter: 'blur(4px)', color: '#f59e0b', padding: '0.25rem 0.65rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 800, border: '1px solid rgba(245, 158, 11, 0.3)', zIndex: 2 }}>
+                      ⭐ {rest.rating || '4.8'} ({rest.reviewsCount || '120+'})
                     </span>
                   </div>
 
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.2rem', fontWeight: 800 }}>
+                  <div style={{ padding: '1.2rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.18rem', fontWeight: 800, lineHeight: 1.3 }}>
                       {rest.name || 'Restaurante Landa'}
                     </h3>
 
-                    <span style={{ color: '#f97316', fontWeight: 700, fontSize: '0.84rem' }}>
+                    <span style={{ color: '#ea580c', fontWeight: 700, fontSize: '0.84rem' }}>
                       🍴 {rest.food_type || 'Comida Criolla & Rápida'}
                     </span>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.3rem', fontSize: '0.82rem', color: '#94a3b8' }}>
+                    {/* METADATA CHIPS (TIME & DELIVERY) */}
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                      <span style={{ background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', padding: '0.2rem 0.55rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
+                        ⏱️ {rest.deliveryTime || '25 - 35 min'}
+                      </span>
+                      <span style={{ background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', padding: '0.2rem 0.55rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
+                        🛵 Domicilio: {rest.deliveryFee || '$ 3.500 COP'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.4rem', fontSize: '0.82rem', color: '#94a3b8' }}>
                       <span>📍 {rest.address || 'Dirección registrada'}{rest.city ? `, ${rest.city}` : ''}</span>
-                      <span>📞 {rest.phone || 'Teléfono no publicado'}</span>
+                      <span>📞 Contacto: {rest.phone || 'Disponible en App'}</span>
                     </div>
                   </div>
 
                   {/* ACTION BUTTON */}
-                  <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                  <div style={{ padding: '0 1.2rem 1.2rem 1.2rem' }}>
                     <button
                       className="btn-action-approve full-width"
-                      style={{ background: '#f97316', borderColor: '#f97316', fontSize: '0.88rem' }}
+                      style={{ background: '#ea580c', borderColor: '#ea580c', fontSize: '0.88rem', padding: '0.8rem', fontWeight: 800 }}
                       onClick={() => setSelectedRestaurantModal(rest)}
                     >
-                      📲 Ver Información & Pedir en App
+                      🍽️ Ver Carta de Platos & Información
                     </button>
                   </div>
                 </div>
@@ -369,56 +650,155 @@ function Restaurantes() {
         </div>
       </div>
 
-      {/* RESTAURANT DETAILS & APP ORDER MODAL */}
+      {/* RESTAURANT DETAILS & MENU VIEWER MODAL */}
       {selectedRestaurantModal && (
         <div className="finances-modal-backdrop" onClick={() => setSelectedRestaurantModal(null)}>
-          <div className="finances-modal-card" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="finances-modal-header">
-              <h3>{selectedRestaurantModal.name}</h3>
+          <div
+            className="finances-modal-card"
+            style={{ maxWidth: '640px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* MODAL HEADER */}
+            <div className="finances-modal-header" style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.86rem' }}>
+                <img
+                  src={selectedRestaurantModal.avatar || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=200&auto=format&fit=crop'}
+                  alt={selectedRestaurantModal.name}
+                  style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover', border: '2px solid #f97316' }}
+                />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#ffffff', fontWeight: 800 }}>
+                    {selectedRestaurantModal.name}
+                  </h3>
+                  <span style={{ color: '#f97316', fontWeight: 700, fontSize: '0.82rem' }}>
+                    🍴 {selectedRestaurantModal.food_type || 'Comida Local'} • 📍 {selectedRestaurantModal.city || 'Colombia'}
+                  </span>
+                </div>
+              </div>
               <button className="close-modal-btn" onClick={() => setSelectedRestaurantModal(null)}>✕</button>
             </div>
 
-            <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-              <img
-                src={selectedRestaurantModal.avatar || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop'}
-                alt={selectedRestaurantModal.name}
-                style={{ width: '120px', height: '120px', borderRadius: '20px', objectFit: 'cover', margin: '0 auto 1rem auto', border: '3px solid #f97316' }}
-              />
+            {/* MODAL BODY WITH SCROLL */}
+            <div className="finances-modal-body" style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              
+              {/* BANNER INFORMATIVO SOLO LECTURA */}
+              <div style={{ background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '0.85rem 1rem', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                <span style={{ fontSize: '1.8rem', flexShrink: 0 }}>📲</span>
+                <div>
+                  <h4 style={{ color: '#ffffff', margin: '0 0 0.15rem 0', fontSize: '0.9rem', fontWeight: 800 }}>
+                    Carta de Platos (Visualización)
+                  </h4>
+                  <p style={{ color: '#94a3b8', fontSize: '0.78rem', margin: 0, lineHeight: 1.35 }}>
+                    Explora los deliciosos platos disponibles. Para armar tu pedido, agregar adicionales y rastrear tu domicilio en mapa en tiempo real, ingresa a la <strong>App Móvil Landa</strong>.
+                  </p>
+                </div>
+              </div>
 
-              <span style={{ color: '#f97316', fontWeight: 800, fontSize: '1rem', display: 'block', marginBottom: '0.4rem' }}>
-                🍴 {selectedRestaurantModal.food_type || 'Comida Local'}
-              </span>
+              {/* DETALLES DE UBICACIÓN & CONTACTO */}
+              <div style={{ background: '#090d16', padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                <span>📍 <strong>Dirección:</strong> {selectedRestaurantModal.address || 'Dirección registrada'}</span>
+                <span>📞 <strong>Contacto:</strong> {selectedRestaurantModal.phone || 'Disponible en App'}</span>
+              </div>
 
-              <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: '0 0 1rem 0' }}>
-                📍 {selectedRestaurantModal.address || 'Ubicación local'} {selectedRestaurantModal.city ? `, ${selectedRestaurantModal.city}` : ''} <br />
-                📞 Contacto: {selectedRestaurantModal.phone || 'Disponible en App'}
-              </p>
+              {/* MENÚ / CARTA DE PLATOS */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                  <h4 style={{ color: '#ffffff', margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
+                    🍽️ Menú & Especialidades ({modalDishes.length})
+                  </h4>
+                  <span style={{ fontSize: '0.75rem', color: '#f97316', fontWeight: 700 }}>
+                    Precios sugeridos en COP
+                  </span>
+                </div>
 
-              <div style={{ background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '1rem', borderRadius: '14px', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '0.3rem' }}>📲</span>
-                <h4 style={{ color: '#ffffff', margin: '0 0 0.2rem 0', fontSize: '0.95rem' }}>
-                  Realiza tu pedido desde la App Móvil Landa
-                </h4>
-                <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0 }}>
-                  Abre la app en tu celular para ver la carta completa, agregar extras y seguir la ruta del domiciliario en mapa en tiempo real.
-                </p>
+                {loadingModalDishes ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                    <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.3rem' }}>⏳</span>
+                    Cargando carta de platos...
+                  </div>
+                ) : modalDishes.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', background: '#090d16', borderRadius: '12px', color: '#94a3b8' }}>
+                    <span style={{ fontSize: '2rem', display: 'block', marginBottom: '0.4rem' }}>🍲</span>
+                    Este restaurante aún no ha publicado sus platos en la carta.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.85rem' }}>
+                    {modalDishes.map((dish) => (
+                      <div
+                        key={dish.id}
+                        style={{
+                          background: '#090d16',
+                          borderRadius: '14px',
+                          overflow: 'hidden',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                        }}
+                      >
+                        <div style={{ position: 'relative', width: '100%', height: '130px', background: '#1e293b' }}>
+                          {isVideoUrl(dish.image_url) ? (
+                            <video
+                              src={getOptimizedVideoUrl(dish.image_url)}
+                              controls
+                              playsInline
+                              muted
+                              loop
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <img
+                              src={dish.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop'}
+                              alt={dish.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop'; }}
+                            />
+                          )}
+                          <span style={{ position: 'absolute', bottom: '8px', right: '8px', background: '#f97316', color: '#ffffff', padding: '0.2rem 0.55rem', borderRadius: '8px', fontWeight: 900, fontSize: '0.85rem', zIndex: 2 }}>
+                            {formatPrice(dish.price)}
+                          </span>
+                        </div>
+
+                        <div style={{ padding: '0.85rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <h5 style={{ margin: 0, color: '#ffffff', fontSize: '0.95rem', fontWeight: 800 }}>{dish.name}</h5>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.78rem', lineHeight: 1.35, flex: 1 }}>
+                            {dish.description}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button className="btn-action-reject full-width" onClick={() => setSelectedRestaurantModal(null)}>
+            {/* FOOTER */}
+            <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', gap: '0.75rem' }}>
+              <button className="btn-action-reject full-width" onClick={() => setSelectedRestaurantModal(null)} style={{ padding: '0.85rem' }}>
                 Cerrar
               </button>
-              <button
+              <a
+                href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="btn-action-approve full-width"
-                style={{ background: '#f97316', borderColor: '#f97316' }}
+                style={{
+                  background: '#f97316',
+                  borderColor: '#f97316',
+                  padding: '0.85rem',
+                  fontWeight: 800,
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
                 onClick={() => {
-                  showToast('Abriendo enlace de descarga Landa App...', 'info', 'Descarga App');
+                  showToast('Abriendo enlace de descarga Landa App Móvil...', 'info', 'Descarga App');
                   setSelectedRestaurantModal(null);
                 }}
               >
-                📲 Descargar Landa App
-              </button>
+                📲 Hacer Pedido en Landa App
+              </a>
             </div>
           </div>
         </div>

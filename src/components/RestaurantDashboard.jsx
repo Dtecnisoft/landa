@@ -1,19 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import logo from '../assets/images/logo.png';
 import { useToast } from '../context/ToastContext';
+import { uploadToCloudinary, getOptimizedVideoUrl, isVideoUrl } from '../services/cloudinaryService';
 
 const FOOD_CATEGORIES = [
-  { id: 'all', name: 'Todos', icon: '🍽️' },
-  { id: 'pizza', name: 'Pizza', icon: '🍕' },
-  { id: 'burgers', name: 'Burgers', icon: '🍔' },
-  { id: 'asados', name: 'Asados', icon: '🥩' },
-  { id: 'saludable', name: 'Saludable', icon: '🥗' },
-  { id: 'sushi', name: 'Sushi', icon: '🍣' },
-  { id: 'tacos', name: 'Tacos', icon: '🌮' },
-  { id: 'postres', name: 'Postres', icon: '🍰' },
-  { id: 'bebidas', name: 'Bebidas', icon: '🥤' },
+  { id: 'all', name: 'Todos', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=200&auto=format&fit=crop', icon: '🍽️', color: 'rgba(255,255,255,0.08)' },
+  { id: 'pizza', name: 'Pizza', image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=200&auto=format&fit=crop', icon: '🍕', color: '#FFEBEB' },
+  { id: 'burgers', name: 'Burgers', image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?q=80&w=200&auto=format&fit=crop', icon: '🍔', color: '#FFF3E0' },
+  { id: 'asados', name: 'Asados', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=200&auto=format&fit=crop', icon: '🥩', color: '#FFF0E6' },
+  { id: 'saludable', name: 'Saludable', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=200&auto=format&fit=crop', icon: '🥗', color: '#E8F5E9' },
+  { id: 'sushi', name: 'Sushi', image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=200&auto=format&fit=crop', icon: '🍣', color: '#E0F7FA' },
+  { id: 'tacos', name: 'Tacos', image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?q=80&w=200&auto=format&fit=crop', icon: '🌮', color: '#FFF9C4' },
+  { id: 'postres', name: 'Postres', image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=200&auto=format&fit=crop', icon: '🍰', color: '#FCE4EC' },
+  { id: 'bebidas', name: 'Bebidas', image: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?q=80&w=200&auto=format&fit=crop', icon: '🥤', color: '#E0F2FE' },
 ];
 
 function formatPrice(val) {
@@ -50,6 +51,10 @@ function RestaurantDashboard() {
     image_url: '',
   });
   const [savingDish, setSavingDish] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Load User & Role
   useEffect(() => {
@@ -164,6 +169,66 @@ function RestaurantDashboard() {
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  // Handle Local File Upload (Image or Video) to Cloudinary
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+
+    if (!isImage && !isVideo) {
+      showToast('Por favor selecciona un archivo de imagen (JPG, PNG, WebP) o video (MP4, MOV, WebM).', 'warning', 'Formato No Soportado');
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+      showToast('El archivo es demasiado grande. El límite máximo es 100 MB.', 'warning', 'Archivo Muy Grande');
+      return;
+    }
+
+    setUploadingMedia(true);
+    setUploadProgress(0);
+
+    try {
+      const resourceType = isVideo ? 'video' : 'image';
+      const secureUrl = await uploadToCloudinary(file, resourceType, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      setDishForm((prev) => ({ ...prev, image_url: secureUrl }));
+      showToast(
+        isVideo ? '¡Video subido con éxito a Cloudinary!' : '¡Imagen subida con éxito a Cloudinary!',
+        'success',
+        'Archivo Cargado'
+      );
+    } catch (error) {
+      console.error('Error al subir archivo a Cloudinary:', error);
+      showToast(error.message || 'Error al subir el archivo local.', 'error', 'Error de Carga');
+    } finally {
+      setUploadingMedia(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
 
   // Open Publish/Edit Modal
   const handleOpenPublishModal = (dish = null) => {
@@ -362,7 +427,7 @@ function RestaurantDashboard() {
               </div>
 
               {/* CATEGORIES */}
-              <div className="restaurant-tabs-row" style={{ overflowX: 'auto', paddingBottom: '0.25rem' }}>
+              <div className="restaurant-tabs-row" style={{ overflowX: 'auto', paddingBottom: '0.25rem', display: 'flex', gap: '0.6rem' }}>
                 {FOOD_CATEGORIES.map((cat) => {
                   const isActive = selectedCategory === cat.id;
                   return (
@@ -372,11 +437,29 @@ function RestaurantDashboard() {
                       onClick={() => setSelectedCategory(cat.id)}
                       style={{
                         borderColor: isActive ? '#ea580c' : 'transparent',
-                        color: isActive ? '#ea580c' : '#94a3b8',
+                        color: isActive ? '#ffffff' : '#94a3b8',
+                        background: isActive ? 'rgba(234, 88, 12, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.55rem',
+                        padding: '0.5rem 0.9rem',
+                        borderRadius: '20px',
+                        transition: 'all 0.2s ease',
                       }}
                     >
-                      <span className="tab-icon">{cat.icon}</span>
-                      <span className="tab-label">{cat.name}</span>
+                      <img
+                        src={cat.image}
+                        alt={cat.name}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: isActive ? '2px solid #ea580c' : '1px solid rgba(255,255,255,0.2)',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                        }}
+                      />
+                      <span className="tab-label" style={{ fontWeight: isActive ? 800 : 600 }}>{cat.name}</span>
                     </button>
                   );
                 })}
@@ -407,13 +490,25 @@ function RestaurantDashboard() {
                 <div className="restaurants-cards-grid">
                   {filteredDishes.map((dish) => (
                     <div key={dish.id} className="restaurant-master-card" style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ position: 'relative', width: '100%', height: '170px', borderRadius: '12px', overflow: 'hidden', marginBottom: '0.85rem' }}>
-                        <img
-                          src={dish.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop'}
-                          alt={dish.name}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                        <span style={{ position: 'absolute', bottom: '10px', right: '10px', background: '#ea580c', color: '#ffffff', padding: '0.3rem 0.75rem', borderRadius: '10px', fontWeight: 900, fontSize: '0.95rem' }}>
+                      <div style={{ position: 'relative', width: '100%', height: '170px', borderRadius: '12px', overflow: 'hidden', marginBottom: '0.85rem', background: '#0f172a' }}>
+                        {isVideoUrl(dish.image_url) ? (
+                          <video
+                            src={getOptimizedVideoUrl(dish.image_url)}
+                            controls
+                            playsInline
+                            muted
+                            loop
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <img
+                            src={dish.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop'}
+                            alt={dish.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=600&auto=format&fit=crop'; }}
+                          />
+                        )}
+                        <span style={{ position: 'absolute', bottom: '10px', right: '10px', background: '#ea580c', color: '#ffffff', padding: '0.3rem 0.75rem', borderRadius: '10px', fontWeight: 900, fontSize: '0.95rem', zIndex: 2 }}>
                           {formatPrice(dish.price)}
                         </span>
                       </div>
@@ -476,18 +571,32 @@ function RestaurantDashboard() {
 
             <div className="finances-modal-body" style={{ padding: '1.5rem 1.75rem', overflowY: 'auto', flex: 1 }}>
               <form onSubmit={handleSaveDish} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                {/* LIVE PHOTO PREVIEW */}
+                {/* LIVE PHOTO / VIDEO PREVIEW */}
                 <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', background: '#090d16', padding: '1rem', borderRadius: '16px', border: '1px dashed rgba(249, 115, 22, 0.3)' }}>
-                  <div style={{ width: '90px', height: '90px', borderRadius: '14px', overflow: 'hidden', background: '#1e293b', flexShrink: 0, border: '2px solid #ea580c' }}>
-                    <img
-                      src={dishForm.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop'}
-                      alt="Vista Previa"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop'; }}
-                    />
+                  <div style={{ width: '90px', height: '90px', borderRadius: '14px', overflow: 'hidden', background: '#1e293b', flexShrink: 0, border: '2px solid #ea580c', position: 'relative' }}>
+                    {isVideoUrl(dishForm.image_url) ? (
+                      <video
+                        src={getOptimizedVideoUrl(dishForm.image_url)}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        controls
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <img
+                        src={dishForm.image_url || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop'}
+                        alt="Vista Previa"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop'; }}
+                      />
+                    )}
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.75rem', color: '#ea580c', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vista Previa de la Foto</span>
+                    <span style={{ fontSize: '0.75rem', color: '#ea580c', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {isVideoUrl(dishForm.image_url) ? '🎥 Vista Previa del Video' : '📷 Vista Previa de la Foto'}
+                    </span>
                     <h4 style={{ margin: '0.2rem 0', color: '#ffffff', fontSize: '1rem' }}>{dishForm.name || 'Nombre del Plato'}</h4>
                     <span style={{ color: '#4ade80', fontWeight: 900, fontSize: '0.95rem' }}>
                       {dishForm.price ? formatPrice(dishForm.price) : '$ 0 COP'}
@@ -558,21 +667,134 @@ function RestaurantDashboard() {
                   </div>
                 </div>
 
-                {/* URL FOTO */}
+                {/* CARGAR FOTO / VIDEO DESDE ARCHIVOS LOCALES (CLOUDINARY) */}
                 <div>
                   <label style={{ display: 'block', color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.4rem', fontWeight: 700 }}>
-                    URL Foto del Plato
+                    Foto o Video del Plato (Archivos Locales o URL)
                   </label>
+
+                  {/* Input de archivo oculto */}
                   <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/photo-..."
-                    value={dishForm.image_url}
-                    onChange={(e) => setDishForm({ ...dishForm, image_url: e.target.value })}
-                    style={{ width: '100%', padding: '0.85rem 1rem', borderRadius: '12px', background: '#090d16', border: '1px solid rgba(255,255,255,0.15)', color: '#ffffff', fontSize: '0.92rem' }}
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleFileUpload(e.target.files[0]);
+                      }
+                    }}
                   />
-                  <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.3rem', display: 'block' }}>
-                    Puedes pegar un enlace directo a la imagen de tu plato.
-                  </span>
+
+                  {/* Zona de Drop & Carga */}
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    onClick={() => !uploadingMedia && fileInputRef.current?.click()}
+                    style={{
+                      border: dragActive ? '2px solid #ea580c' : '2px dashed rgba(249, 115, 22, 0.4)',
+                      borderRadius: '14px',
+                      padding: '1.25rem 1rem',
+                      textAlign: 'center',
+                      background: dragActive ? 'rgba(234, 88, 12, 0.15)' : 'rgba(15, 23, 42, 0.6)',
+                      cursor: uploadingMedia ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s ease',
+                      marginBottom: '0.75rem',
+                    }}
+                  >
+                    {uploadingMedia ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1.8rem', display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
+                        <span style={{ color: '#ea580c', fontWeight: 800, fontSize: '0.9rem' }}>
+                          Subiendo a Cloudinary... {uploadProgress}%
+                        </span>
+                        <div style={{ width: '100%', maxWidth: '280px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${uploadProgress}%`,
+                              height: '100%',
+                              backgroundColor: '#ea580c',
+                              transition: 'width 0.2s ease-in-out',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : dishForm.image_url ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', textAlign: 'left' }}>
+                          <span style={{ fontSize: '1.5rem' }}>{isVideoUrl(dishForm.image_url) ? '🎥' : '📷'}</span>
+                          <div>
+                            <span style={{ fontSize: '0.85rem', color: '#4ade80', fontWeight: 700, display: 'block' }}>
+                              {isVideoUrl(dishForm.image_url) ? 'Video cargado exitosamente' : 'Imagen cargada exitosamente'}
+                            </span>
+                            <span style={{ fontSize: '0.73rem', color: '#94a3b8', wordBreak: 'break-all', display: 'block', maxWidth: '300px' }}>
+                              {dishForm.image_url}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                          style={{
+                            background: 'rgba(249, 115, 22, 0.2)',
+                            border: '1px solid #ea580c',
+                            color: '#ffedd5',
+                            padding: '0.45rem 0.85rem',
+                            borderRadius: '8px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🔄 Cambiar Archivo
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '1.8rem', marginBottom: '0.2rem' }}>📁 📷 🎥</div>
+                        <span style={{ fontSize: '0.9rem', color: '#ffffff', fontWeight: 700, display: 'block' }}>
+                          Haz clic o arrastra una Imagen o Video local aquí
+                        </span>
+                        <span style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: '0.2rem', display: 'block' }}>
+                          Formatos: JPG, PNG, WebP, MP4, MOV, WebM (Subida direct a Cloudinary)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Opción de pegar URL directa */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="url"
+                      placeholder="O pega un enlace directo a la imagen o video (https://...)"
+                      value={dishForm.image_url}
+                      onChange={(e) => setDishForm({ ...dishForm, image_url: e.target.value })}
+                      style={{ flex: 1, padding: '0.75rem 1rem', borderRadius: '10px', background: '#090d16', border: '1px solid rgba(255,255,255,0.15)', color: '#ffffff', fontSize: '0.86rem' }}
+                    />
+                    {dishForm.image_url && (
+                      <button
+                        type="button"
+                        title="Limpiar URL"
+                        onClick={() => setDishForm({ ...dishForm, image_url: '' })}
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                          color: '#f87171',
+                          padding: '0.75rem 0.9rem',
+                          borderRadius: '10px',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* BOTONES */}
@@ -588,7 +810,7 @@ function RestaurantDashboard() {
                   <button
                     type="submit"
                     className="btn-action-approve full-width"
-                    disabled={savingDish}
+                    disabled={savingDish || uploadingMedia}
                     style={{ background: '#ea580c', borderColor: '#ea580c', padding: '0.9rem', fontSize: '0.95rem', fontWeight: 800 }}
                   >
                     {savingDish ? 'Guardando...' : dishToEdit ? '✓ Guardar Cambios' : '🚀 Publicar Plato'}

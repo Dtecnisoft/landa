@@ -164,8 +164,35 @@ function Encabezado() {
               )}
             </div>
 
-            <a href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing" className="btn btn-primary header-cta mobile-only-cta" onClick={closeMenu}>
-              Descargar App
+            <a
+              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary header-cta mobile-only-cta"
+              onClick={closeMenu}
+              style={{
+                background: 'linear-gradient(135deg, #4556EC 0%, #3142c9 100%)',
+                borderColor: '#4556EC',
+                color: '#ffffff',
+                padding: '0.55rem 1.2rem',
+                borderRadius: '50px',
+                boxShadow: '0 6px 20px rgba(69, 86, 236, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.2) inset',
+                alignItems: 'center',
+                gap: '0.65rem',
+                textDecoration: 'none',
+              }}
+            >
+              <span style={{ fontSize: '1.25rem', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '50%', width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                📲
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: 1.15 }}>
+                <span style={{ fontWeight: 900, fontSize: '0.88rem', color: '#ffffff', letterSpacing: '0.2px' }}>
+                  Descargar Landa App
+                </span>
+                <span style={{ fontSize: '0.66rem', color: '#dbe0ff', fontWeight: 600 }}>
+                  ⚡ Gratis • Instalación Rápida
+                </span>
+              </div>
             </a>
           </nav>
 
@@ -225,8 +252,34 @@ function Encabezado() {
               </div>
             )}
 
-            <a href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing" className="btn btn-primary header-cta desktop-cta">
-              Descargar App
+            <a
+              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary header-cta desktop-cta"
+              style={{
+                background: 'linear-gradient(135deg, #4556EC 0%, #3142c9 100%)',
+                borderColor: '#4556EC',
+                color: '#ffffff',
+                padding: '0.55rem 1.2rem',
+                borderRadius: '50px',
+                boxShadow: '0 6px 20px rgba(69, 86, 236, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.2) inset',
+                alignItems: 'center',
+                gap: '0.65rem',
+                textDecoration: 'none',
+              }}
+            >
+              <span style={{ fontSize: '1.25rem', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '50%', width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                📲
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: 1.15 }}>
+                <span style={{ fontWeight: 900, fontSize: '0.88rem', color: '#ffffff', letterSpacing: '0.2px' }}>
+                  Descargar Landa App
+                </span>
+                <span style={{ fontSize: '0.66rem', color: '#dbe0ff', fontWeight: 600 }}>
+                  ⚡ Gratis • Instalación Rápida
+                </span>
+              </div>
             </a>
           </div>
         </div>

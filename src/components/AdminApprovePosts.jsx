@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import logo from '../assets/images/logo.png';
 import { useToast } from '../context/ToastContext';
+import { isVideoUrl, getOptimizedVideoUrl } from '../services/cloudinaryService';
 
 const TABS = [
   { id: 'pending', label: 'Pendientes', icon: '⏳', color: '#f59e0b' },
@@ -342,11 +343,23 @@ function AdminApprovePosts() {
                       </span>
                     )}
 
-                    {/* IMAGES */}
+                    {/* IMAGES & VIDEOS */}
                     {images.length > 0 && (
                       <div className="post-images-preview-row">
                         {images.map((img, idx) => (
-                          <img key={idx} src={img} alt={`Adjunto ${idx + 1}`} className="post-attached-img" />
+                          isVideoUrl(img) ? (
+                            <video
+                              key={idx}
+                              src={getOptimizedVideoUrl(img)}
+                              controls
+                              playsInline
+                              muted
+                              className="post-attached-img"
+                              style={{ objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <img key={idx} src={img} alt={`Adjunto ${idx + 1}`} className="post-attached-img" />
+                          )
                         ))}
                       </div>
                     )}
