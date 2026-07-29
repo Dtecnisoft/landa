@@ -9,7 +9,7 @@ const features = [
     image: imgCarro,
     alt: 'Viajes Seguros Landa App',
     tag: '🚗 TRANSPORTE SEGURO',
-    title: 'Viajes Urbanos & Intermunicipales',
+    title: 'Viajes Urbanos e Intermunicipales',
     text: 'Conecta con conductores de tu propia comunidad validados minuciosamente con cédula y antecedentes. Viaja seguro con tarifa justa y monitoreo GPS.',
     highlights: [
       '✓ Conductores 100% validados con antecedentes RUNT',
@@ -24,15 +24,15 @@ const features = [
     id: 'comida',
     image: imgRestaurantes,
     alt: 'Restaurantes y Domicilios Landa App',
-    tag: '🍔 GASTRONOMÍA & DOMICILIOS',
-    title: 'Restaurantes Locales & Entregas',
+    tag: '🍔 GASTRONOMÍA Y DOMICILIOS',
+    title: 'Restaurantes Locales y Entregas',
     text: 'Apoya el comercio gastronómico de tu zona pidiendo comida de tus locales preferidos. Consulta el menú con fotos reales y precios de cada establecimiento.',
     highlights: [
       '✓ Fotos reales de los platos y precios exactos',
       '✓ Entregas promedio en 25 - 35 minutos',
       '✓ Rastreo en vivo del domiciliario en el mapa'
     ],
-    ctaText: '🍽️ Ver Restaurantes & Menús',
+    ctaText: '🍽️ Ver Restaurantes y Menús',
     routePath: '/restaurantes',
     btnColor: '#ea580c',
   },
@@ -40,8 +40,8 @@ const features = [
     id: 'comunidad',
     image: imgSocial,
     alt: 'Red Social Local Landa App',
-    tag: '💬 COMUNIDAD & MURO',
-    title: 'Red Social & Muro Comunitario',
+    tag: '💬 COMUNIDAD Y MURO',
+    title: 'Red Social y Muro Comunitario',
     text: 'Entérate de lo que sucede en tu municipio en tiempo real: ofertas de empleo local, eventos culturales, avisos de vecinos y chat directo entre usuarios.',
     highlights: [
       '✓ Muro interactivo de eventos e información de tu ciudad',

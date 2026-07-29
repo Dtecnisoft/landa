@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 const TEAM_MEMBERS = [
   {
     name: 'Leonardo Esaut Landázuri Torres',
-    role: 'Co-Fundador & Chief Executive Officer (CEO)',
+    role: 'Co-Fundador y Chief Executive Officer (CEO)',
     tag: 'Liderazgo Ejecutivo',
     avatar: 'https://plus.unsplash.com/premium_photo-1678566153919-86c4ba4216f1?q=80&w=870&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     bio: 'Apasionado por la economía colaborativa y el desarrollo tecnológico inclusivo en el Valle del Cauca. Lidera la visión estratégica y la expansión de Landa App en Colombia.',
@@ -12,8 +12,8 @@ const TEAM_MEMBERS = [
   },
   {
     name: 'Diego Alonso Bolaños',
-    role: 'Co-Fundador & Director de Tecnología (CTO)',
-    tag: 'Ingeniería & Producto',
+    role: 'Co-Fundador y Director de Tecnología (CTO)',
+    tag: 'Ingeniería y Producto',
     avatar: 'https://images.unsplash.com/photo-1537432376769-00f5c2f4c8d2?q=80&w=725&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     bio: 'Especialista en arquitectura de software en tiempo real, sistemas distribuidos y seguridad de datos. Encargado de la infraestructura robusta y la experiencia digital de Landa.',
     location: 'Jamundí, Colombia',
@@ -21,21 +21,21 @@ const TEAM_MEMBERS = [
 ];
 
 const METRICS = [
-  { value: '+15.000', label: 'Domicilios & Viajes Realizados' },
-  { value: '10%', label: 'Comisión Fija & Transparente' },
-  { value: '100%', label: 'Conductores & Locales Verificados' },
+  { value: '+15.000', label: 'Domicilios y Viajes Realizados' },
+  { value: '10%', label: 'Comisión Fija y Transparente' },
+  { value: '100%', label: 'Conductores y Locales Verificados' },
   { value: '4.9 ⭐', label: 'Calificación Promedio de Usuarios' },
 ];
 
 const VALUES = [
   {
     icon: '🤝',
-    title: 'Comercio Justo & Transparente',
+    title: 'Comercio Justo y Transparente',
     desc: 'Sin tarifas ocultas ni comisiones abusivas del 30%. Conectamos al cliente directamente con el restaurante y el repartidor de su comunidad.',
   },
   {
     icon: '🛡️',
-    title: 'Seguridad & Verificación Estricta',
+    title: 'Seguridad y Verificación Estricta',
     desc: 'Validamos minuciosamente los antecedentes (RUNT, Cédula, Licencia) de cada conductor y la legalidad de cada establecimiento aliado.',
   },
   {

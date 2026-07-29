@@ -132,7 +132,7 @@ function PiePagina() {
             title="Chatear por WhatsApp con Atención 24/7"
           >
             <span className="status-live-dot"></span>
-            <span>🟢 Servicio Operativo 24/7 • Cali & Valle del Cauca</span>
+            <span>🟢 Servicio Operativo 24/7 • Cali y Valle del Cauca</span>
           </a>
         </div>
 
@@ -146,13 +146,13 @@ function PiePagina() {
               <li>
                 <Link to="/">
                   <FooterIcons.Home />
-                  <span>Inicio & Novedades</span>
+                  <span>Inicio y Novedades</span>
                 </Link>
               </li>
               <li>
                 <Link to="/restaurantes">
                   <FooterIcons.Restaurant />
-                  <span>Restaurantes & Gastronomía</span>
+                  <span>Restaurantes y Gastronomía</span>
                 </Link>
               </li>
               <li>
@@ -164,7 +164,7 @@ function PiePagina() {
               <li>
                 <Link to="/contacto">
                   <FooterIcons.Support />
-                  <span>Soporte & Atención 24/7</span>
+                  <span>Soporte y Atención 24/7</span>
                 </Link>
               </li>
             </ul>
@@ -203,7 +203,7 @@ function PiePagina() {
 
           {/* COL 3: MARCO LEGAL Y TRANSPARENCIA */}
           <div className="footer-nav-col">
-            <h4 className="footer-col-title">Legal & Transparencia</h4>
+            <h4 className="footer-col-title">Legal y Transparencia</h4>
             <ul className="footer-links-list">
               <li>
                 <Link to="/terminos-condiciones">
@@ -234,7 +234,7 @@ function PiePagina() {
 
           {/* COL 4: CONTACTO OFICIAL & ATENCIÓN */}
           <div className="footer-nav-col contact-col">
-            <h4 className="footer-col-title">Contacto & Atención</h4>
+            <h4 className="footer-col-title">Contacto y Atención</h4>
 
             <div className="footer-contact-card">
               <div className="contact-card-item">
@@ -254,7 +254,7 @@ function PiePagina() {
               <div className="contact-card-item">
                 <FooterIcons.MapPin />
                 <div className="contact-item-info">
-                  <small>Ubicación & Domicilio</small>
+                  <small>Ubicación y Domicilio</small>
                   <span>Cali, Valle del Cauca, Colombia</span>
                 </div>
               </div>

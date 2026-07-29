@@ -43,10 +43,6 @@ function TerminosCondiciones() {
           <p><strong>3.3.</strong> LANDA no es empleadora de los Prestadores del Servicio. La relación entre LANDA y el Prestador es de prestación independiente conforme a contrato individual.</p>
           <p><strong>3.4.</strong> LANDA opera como plataforma tecnológica de intermediación, conforme a la actividad económica declarada ante la autoridad tributaria competente.</p>
 
-          <div className="regulatory-warning" style={{ background: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.25)', padding: '1rem 1.25rem', borderRadius: '12px', marginTop: '1rem', color: '#cbd5e1', fontSize: '0.88rem', lineHeight: '1.5' }}>
-            <strong style={{ color: '#f97316' }}>⚠️ Advertencia regulatoria (informativa):</strong> El servicio de transporte de pasajeros intermediado por plataformas digitales con vehículos particulares opera en Colombia en una zona regulatoria sin marco legal específico vigente. Permanecen facultades generales de la Superintendencia de Transporte bajo la Ley 336/1996.
-          </div>
-
           <hr className="legal-divider" />
 
           <h2>4. REGISTRO Y CUENTA</h2>

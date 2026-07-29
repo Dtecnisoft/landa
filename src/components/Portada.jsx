@@ -106,7 +106,7 @@ function Portada() {
             </div>
             <div>
               <span>100%</span>
-              <small className="metric-label">Seguridad & Confianza</small>
+              <small className="metric-label">Seguridad y Confianza</small>
             </div>
             <div>
               <span>+Recompensas</span>
