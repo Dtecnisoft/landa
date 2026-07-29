@@ -6,6 +6,7 @@ import Sobre from './components/Sobre';
 import Testimonios from './components/Testimonios';
 import LlamadaAccion from './components/LlamadaAccion';
 import Politicas from './components/Politicas';
+import PoliticasReembolsos from './components/PoliticasReembolsos';
 import QuienesSomos from './components/QuienesSomos';
 import TerminosCondiciones from './components/TerminosCondiciones';
 import Restaurantes from './components/Restaurantes';
@@ -55,6 +56,7 @@ function MainLayout() {
           <Route path="/quienes-somos" element={<QuienesSomos />} />
           <Route path="/terminos-condiciones" element={<TerminosCondiciones />} />
           <Route path="/politicas-tratamientos-datos" element={<Politicas />} />
+          <Route path="/politicas-reembolsos" element={<PoliticasReembolsos />} />
           <Route path="/aviso-legal" element={<AvisoLegal />} />
           <Route path="/restaurantes" element={<Restaurantes />} />
 

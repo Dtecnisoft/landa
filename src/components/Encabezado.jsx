@@ -207,7 +207,11 @@ function Encabezado() {
                 >
                   <span className="user-avatar">{user.name.charAt(0).toUpperCase()}</span>
                   <span className="user-name">{user.name}</span>
-                  <span className="dropdown-caret">▾</span>
+                  <span className={`dropdown-caret ${isUserMenuOpen ? 'open' : ''}`}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
                 </button>
                 {isUserMenuOpen && (
                   <div className="user-dropdown-menu">
@@ -218,28 +222,62 @@ function Encabezado() {
                     <div className="dropdown-divider"></div>
                     {(user.role === 'admin' || user.email?.toLowerCase() === 'admin@landa.com' || user.email?.toLowerCase().includes('master')) && (
                       <Link to="/master" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
-                        👑 Panel Master
+                        <span className="dropdown-icon-box purple">
+                          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14" />
+                          </svg>
+                        </span>
+                        <span>Panel Master</span>
                       </Link>
                     )}
                     {(user.role === 'employee' || user.role === 'empleado' || user.isEmployee) && (
                       <Link to="/empleado" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
-                        💼 Panel Empleado
+                        <span className="dropdown-icon-box blue">
+                          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                          </svg>
+                        </span>
+                        <span>Panel Empleado</span>
                       </Link>
                     )}
                     {(user.role === 'restaurant' || user.role === 'restaurante') && (
                       <Link to="/restaurante/gestion" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
-                        🏪 Mi Restaurante (Gestión)
+                        <span className="dropdown-icon-box amber">
+                          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 21h18M3 7v1a3 3 0 0 0 6 0V7m0 0v1a3 3 0 0 0 6 0V7m0 0v1a3 3 0 0 0 6 0V7M4 7l2-4h12l2 4M5 21V10.85M19 21V10.85" />
+                          </svg>
+                        </span>
+                        <span>Mi Restaurante (Gestión)</span>
                       </Link>
                     )}
                     <Link to="/restaurantes" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
-                      🛒 Ver Restaurantes
+                      <span className="dropdown-icon-box cyan">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M6 2v20M18 2v20M12 2v20M2 12h20" />
+                        </svg>
+                      </span>
+                      <span>Ver Restaurantes</span>
                     </Link>
                     <Link to="/contacto" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
-                      💬 Ayuda y Soporte
+                      <span className="dropdown-icon-box emerald">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                        </svg>
+                      </span>
+                      <span>Ayuda y Soporte</span>
                     </Link>
                     <div className="dropdown-divider"></div>
                     <button className="dropdown-item logout-item" onClick={handleLogout}>
-                      🚪 Cerrar Sesión
+                      <span className="dropdown-icon-box red">
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                      </span>
+                      <span>Cerrar Sesión</span>
                     </button>
                   </div>
                 )}
