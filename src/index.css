@@ -5354,6 +5354,17 @@ main {
   align-items: center;
   gap: 0.6rem;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.footer-status-pill:hover {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
 }
 
 .status-live-dot {

@@ -124,10 +124,16 @@ function PiePagina() {
             </div>
           </div>
 
-          <div className="footer-status-pill">
+          <a
+            href="https://wa.me/573126201934?text=Hola%20Landa%20App%2C%20me%20gustar%C3%ADa%20recibir%20atenci%C3%B3n%20en%20l%C3%ADnea."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="footer-status-pill"
+            title="Chatear por WhatsApp con Atención 24/7"
+          >
             <span className="status-live-dot"></span>
             <span>🟢 Servicio Operativo 24/7 • Cali & Valle del Cauca</span>
-          </div>
+          </a>
         </div>
 
         {/* ROW 2: MAIN NAVIGATION GRID */}
