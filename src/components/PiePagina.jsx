@@ -132,7 +132,7 @@ function PiePagina() {
             title="Chatear por WhatsApp con Atención 24/7"
           >
             <span className="status-live-dot"></span>
-            <span>🟢 Servicio Operativo 24/7</span>
+            <span>🟢 Soporte 24/7</span>
           </a>
         </div>
 

@@ -285,10 +285,10 @@ function Contacto() {
         <div className="section-title text-center">
           <div className="contact-status-badge">
             <span className="pulse-dot"></span>
-            <span className="badge-text">Soporte Activo 24/7</span>
+            <span className="badge-text">Soporte 24/7</span>
           </div>
           <span className="eyebrow">ESTAMOS PARA AYUDARTE</span>
-          <h2>Contacto & Soporte Directo</h2>
+          <h2>Contacto y Soporte Directo</h2>
           <p className="contact-subtitle">
             ¿Tienes preguntas, quieres integrar tu restaurante o necesitas ayuda inmediata? Elige tu canal preferido y hablemos.
           </p>
