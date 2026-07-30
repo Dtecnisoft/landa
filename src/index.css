@@ -6106,6 +6106,349 @@ main {
   color: #ffffff;
 }
 
+/* Clickable user row */
+.clickable-user-row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.clickable-user-row:hover {
+  background: rgba(99, 102, 241, 0.09) !important;
+}
+
+/* User Profile Modal Styles */
+.user-profile-modal-card {
+  background: #0f172a;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 20px;
+  width: 90vw;
+  max-width: 860px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.75rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.user-modal-top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.user-modal-header-main {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.user-modal-avatar-box {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  border: 2px solid #818cf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.user-modal-avatar-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-modal-title-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.user-name-role-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.user-name-role-row h3 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.user-modal-email-city {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+/* User Modal Metrics Bar */
+.user-modal-metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+
+.modal-metric-chip {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.chip-label {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.chip-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.chip-value.gold { color: #fbbf24; }
+.chip-value.green { color: #4ade80; }
+.chip-value.blue { color: #38bdf8; }
+
+.user-modal-bio-box {
+  background: rgba(30, 41, 59, 0.4);
+  border-left: 3px solid #6366f1;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+}
+
+.bio-lbl {
+  font-weight: 700;
+  color: #a5b4fc;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.user-modal-bio-box p {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+/* Internal Tabs */
+.user-modal-tabs-nav {
+  display: flex;
+  gap: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.5rem;
+}
+
+.user-modal-tab {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.user-modal-tab:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.user-modal-tab.active {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.15);
+  font-weight: 700;
+}
+
+/* Posts Grid */
+.user-posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.user-post-card {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease;
+}
+
+.user-post-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.post-thumb-box {
+  height: 130px;
+  width: 100%;
+  position: relative;
+  background: #1e293b;
+}
+
+.post-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.no-img-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.post-status-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(16, 185, 129, 0.85);
+  color: #ffffff;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.post-card-content {
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.post-cat-badge {
+  font-size: 0.7rem;
+  color: #818cf8;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.post-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.dish-desc-text {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.post-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.post-price-tag {
+  color: #4ade80;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.post-stats-meta {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.post-date {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+
+/* Legal Info Grid */
+.user-legal-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 650px) {
+  .user-legal-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.legal-info-card {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.legal-info-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.legal-info-card h5 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.92rem;
+  color: #818cf8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.35rem;
+}
+
+.legal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.84rem;
+}
+
+.legal-row .lbl {
+  color: #94a3b8;
+}
+
+.empty-user-modal-state {
+  text-align: center;
+  padding: 2rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+
 
 
 

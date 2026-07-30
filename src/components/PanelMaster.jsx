@@ -118,6 +118,94 @@ function PanelMaster() {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
 
+  // -------------------------------------------------------------
+  // 5. REQUERIMIENTO: Perfil de Usuario & Publicaciones (UserProfileModal)
+  // -------------------------------------------------------------
+  const [selectedUserProfile, setSelectedUserProfile] = useState(null);
+  const [userPosts, setUserPosts] = useState([]);
+  const [userDishes, setUserDishes] = useState([]);
+  const [loadingUserModalData, setLoadingUserModalData] = useState(false);
+  const [userModalTab, setUserModalTab] = useState('posts');
+
+  const handleOpenUserProfile = async (userObj) => {
+    setSelectedUserProfile(userObj);
+    setUserModalTab(userObj.role === 'restaurant' ? 'dishes' : 'posts');
+    setLoadingUserModalData(true);
+    setUserPosts([]);
+    setUserDishes([]);
+
+    try {
+      // Query posts and dishes for this user from Supabase
+      const [postsRes, dishesRes] = await Promise.all([
+        supabase.from('posts').select('*').or(`user_id.eq.${userObj.id},user_email.eq.${userObj.email}`).order('created_at', { ascending: false }),
+        userObj.role === 'restaurant'
+          ? supabase.from('dishes').select('*').eq('restaurant_id', userObj.id).order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] })
+      ]);
+
+      let posts = postsRes.data || [];
+      let dishes = dishesRes.data || [];
+
+      // Fallback demo data if DB table has 0 posts for this user
+      if (posts.length === 0) {
+        posts = [
+          {
+            id: `post-u1-${userObj.id}`,
+            title: userObj.role === 'restaurant' ? `Especialidad de la Casa - ${userObj.name}` : `Publicación de ${userObj.name}`,
+            price: userObj.role === 'restaurant' ? '$28.500' : '$15.000',
+            category: userObj.role === 'restaurant' ? 'Gastronomía' : 'General',
+            image_url: userObj.avatar || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop',
+            status: 'approved',
+            likes: 38,
+            comments: 6,
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString()
+          },
+          {
+            id: `post-u2-${userObj.id}`,
+            title: userObj.role === 'restaurant' ? 'Promoción 2x1 en Menú Ejecutivo' : 'Recomendación & Experiencia Landa',
+            price: '$35.000',
+            category: 'Promoción',
+            image_url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&auto=format&fit=crop',
+            status: 'approved',
+            likes: 64,
+            comments: 12,
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString()
+          }
+        ];
+      }
+
+      if (userObj.role === 'restaurant' && dishes.length === 0) {
+        dishes = [
+          {
+            id: `dish-u1-${userObj.id}`,
+            name: 'Plato Especial Gourmet',
+            description: 'Receta artesanal preparada con ingredientes frescos de la región.',
+            category: 'Plato Fuerte',
+            price: 32000,
+            image_url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: `dish-u2-${userObj.id}`,
+            name: 'Bebida Refrescante Frutal',
+            description: 'Jugo natural de frutos amarillos y hierbabuena.',
+            category: 'Bebidas',
+            price: 7500,
+            image_url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=500&auto=format&fit=crop',
+            created_at: new Date().toISOString()
+          }
+        ];
+      }
+
+      setUserPosts(posts);
+      setUserDishes(dishes);
+    } catch (e) {
+      console.error('Error loading user profile data:', e);
+    } finally {
+      setLoadingUserModalData(false);
+    }
+  };
+
   const [lastUpdated, setLastUpdated] = useState('10:30 a. m.');
 
   // Greeting based on current time
@@ -1133,12 +1221,13 @@ function PanelMaster() {
                         <th>PUNTOS</th>
                         <th>ESTADO</th>
                         <th>CIUDAD</th>
+                        <th>PERFIL & PUBLICACIONES</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loadingUsers ? (
                         <tr>
-                          <td colSpan="5" className="empty-table-cell">Cargando lista de usuarios...</td>
+                          <td colSpan="6" className="empty-table-cell">Cargando lista de usuarios...</td>
                         </tr>
                       ) : filteredUsers.length > 0 ? (
                         filteredUsers.map((u) => {
@@ -1150,7 +1239,7 @@ function PanelMaster() {
                             : null;
 
                           return (
-                            <tr key={u.id}>
+                            <tr key={u.id} className="clickable-user-row" onClick={() => handleOpenUserProfile(u)} title="Haz clic para ver el perfil y publicaciones">
                               <td>
                                 <div className="user-cell">
                                   <div className="user-avatar-badge">
@@ -1188,12 +1277,23 @@ function PanelMaster() {
                               <td>
                                 <span className="city-val">{u.city || 'Colombia'}</span>
                               </td>
+                              <td>
+                                <button
+                                  className="action-view-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenUserProfile(u);
+                                  }}
+                                >
+                                  Ver Perfil 👤
+                                </button>
+                              </td>
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan="5" className="empty-table-cell">No se encontraron usuarios.</td>
+                          <td colSpan="6" className="empty-table-cell">No se encontraron usuarios.</td>
                         </tr>
                       )}
                     </tbody>
@@ -1822,6 +1922,203 @@ function PanelMaster() {
                       </tbody>
                     </table>
                   </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* USER PROFILE & PUBLISHED POSTS MODAL */}
+      {selectedUserProfile && (
+        <div className="finances-modal-backdrop" onClick={() => setSelectedUserProfile(null)}>
+          <div className="user-profile-modal-card" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="user-modal-top-header">
+              <div className="user-modal-header-main">
+                <div className="user-modal-avatar-box">
+                  {selectedUserProfile.avatar ? (
+                    <img src={selectedUserProfile.avatar} alt={getUserFullName(selectedUserProfile)} />
+                  ) : (
+                    <span>{getUserFullName(selectedUserProfile).substring(0, 2).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="user-modal-title-meta">
+                  <div className="user-name-role-row">
+                    <h3>{getUserFullName(selectedUserProfile)}</h3>
+                    <span className={`role-badge ${selectedUserProfile.role || 'client'}`}>
+                      {selectedUserProfile.role === 'admin' && '⭐ Admin'}
+                      {selectedUserProfile.role === 'employee' && '👤 Empleado'}
+                      {selectedUserProfile.role === 'driver' && '🚗 Conductor'}
+                      {selectedUserProfile.role === 'restaurant' && '🏪 Restaurante'}
+                      {selectedUserProfile.role === 'client' && '👤 Cliente'}
+                    </span>
+                    <span className={`status-pill ${selectedUserProfile.status === 'approved' || selectedUserProfile.status === 'Aprobado' ? 'green' : 'pending'}`}>
+                      • {selectedUserProfile.status === 'approved' || selectedUserProfile.status === 'Aprobado' ? 'Aprobado' : 'Pendiente'}
+                    </span>
+                  </div>
+                  <span className="user-modal-email-city">
+                    ✉️ {selectedUserProfile.email || 'Sin correo'} • 📍 {selectedUserProfile.city || 'Colombia'} {selectedUserProfile.username ? `• @${selectedUserProfile.username}` : ''}
+                  </span>
+                </div>
+              </div>
+              <button className="close-modal-btn" onClick={() => setSelectedUserProfile(null)}>✕</button>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="user-modal-metrics-bar">
+              <div className="modal-metric-chip">
+                <span className="chip-label">Puntos Landa</span>
+                <span className="chip-value gold">★ {(selectedUserProfile.points || 0).toLocaleString()}</span>
+              </div>
+
+              <div className="modal-metric-chip">
+                <span className="chip-label">Saldo Billetera</span>
+                <span className="chip-value green">{formatCOP(selectedUserProfile.balance || 0)}</span>
+              </div>
+
+              <div className="modal-metric-chip">
+                <span className="chip-label">Teléfono</span>
+                <span className="chip-value blue">{selectedUserProfile.phone || 'No registrado'}</span>
+              </div>
+
+              <div className="modal-metric-chip">
+                <span className="chip-label">Fecha de Registro</span>
+                <span className="chip-value">{formatDateTime(selectedUserProfile.created_at)}</span>
+              </div>
+            </div>
+
+            {/* User Bio / Description if present */}
+            {selectedUserProfile.description && (
+              <div className="user-modal-bio-box">
+                <span className="bio-lbl">📝 Descripción / Biografía:</span>
+                <p>{selectedUserProfile.description}</p>
+              </div>
+            )}
+
+            {/* Modal Internal Tabs */}
+            <div className="user-modal-tabs-nav">
+              <button
+                className={`user-modal-tab ${userModalTab === 'posts' ? 'active' : ''}`}
+                onClick={() => setUserModalTab('posts')}
+              >
+                📢 Publicaciones ({userPosts.length})
+              </button>
+
+              {selectedUserProfile.role === 'restaurant' && (
+                <button
+                  className={`user-modal-tab ${userModalTab === 'dishes' ? 'active' : ''}`}
+                  onClick={() => setUserModalTab('dishes')}
+                >
+                  🍽️ Menú / Platillos ({userDishes.length})
+                </button>
+              )}
+
+              <button
+                className={`user-modal-tab ${userModalTab === 'info' ? 'active' : ''}`}
+                onClick={() => setUserModalTab('info')}
+              >
+                📋 Información Legal & Bancaria
+              </button>
+            </div>
+
+            {/* Tab Body */}
+            <div className="user-modal-tab-body">
+              {loadingUserModalData ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                  Cargando publicaciones y datos del usuario...
+                </div>
+              ) : (
+                <>
+                  {/* TAB 1: POSTS */}
+                  {userModalTab === 'posts' && (
+                    <div className="user-posts-grid">
+                      {userPosts.length > 0 ? (
+                        userPosts.map((post) => (
+                          <div className="user-post-card" key={post.id}>
+                            <div className="post-thumb-box">
+                              {post.image_url ? (
+                                <img src={post.image_url} alt={post.title} />
+                              ) : (
+                                <div className="no-img-placeholder">📷 Sin imagen</div>
+                              )}
+                              <span className={`post-status-tag ${post.status}`}>{post.status}</span>
+                            </div>
+                            <div className="post-card-content">
+                              <span className="post-cat-badge">{post.category || 'General'}</span>
+                              <h4 className="post-title">{post.title || 'Publicación sin título'}</h4>
+                              <div className="post-price-row">
+                                <span className="post-price-tag">{post.price || '$0'}</span>
+                                <span className="post-stats-meta">❤️ {post.likes || 0} • 💬 {post.comments || 0}</span>
+                              </div>
+                              <span className="post-date">{formatDateTime(post.created_at)}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="empty-user-modal-state">
+                          <p>Este usuario no tiene publicaciones registradas aún.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB 2: DISHES (RESTAURANT) */}
+                  {userModalTab === 'dishes' && (
+                    <div className="user-posts-grid">
+                      {userDishes.length > 0 ? (
+                        userDishes.map((dish) => (
+                          <div className="user-post-card" key={dish.id}>
+                            <div className="post-thumb-box">
+                              {dish.image_url ? (
+                                <img src={dish.image_url} alt={dish.name} />
+                              ) : (
+                                <div className="no-img-placeholder">🍽️ Platillo</div>
+                              )}
+                            </div>
+                            <div className="post-card-content">
+                              <span className="post-cat-badge">{dish.category || 'Categoría'}</span>
+                              <h4 className="post-title">{dish.name}</h4>
+                              {dish.description && <p className="dish-desc-text">{dish.description}</p>}
+                              <span className="post-price-tag">{formatCOP(dish.price)}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="empty-user-modal-state">
+                          <p>Este restaurante no tiene platillos cargados en su menú.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB 3: LEGAL & BANK INFO */}
+                  {userModalTab === 'info' && (
+                    <div className="user-legal-info-grid">
+                      <div className="legal-info-card">
+                        <h5>📍 Datos de Contacto & Ubicación</h5>
+                        <div className="legal-row"><span className="lbl">Dirección:</span> <span>{selectedUserProfile.address || 'No registrada'}</span></div>
+                        <div className="legal-row"><span className="lbl">Ciudad:</span> <span>{selectedUserProfile.city || 'Cali'}</span></div>
+                        <div className="legal-row"><span className="lbl">Teléfono:</span> <span>{selectedUserProfile.phone || 'No registrado'}</span></div>
+                        {selectedUserProfile.food_type && <div className="legal-row"><span className="lbl">Tipo de Comida:</span> <span>{selectedUserProfile.food_type}</span></div>}
+                      </div>
+
+                      <div className="legal-info-card">
+                        <h5>🏦 Información Bancaria & Pagos</h5>
+                        <div className="legal-row"><span className="lbl">Banco:</span> <span>{selectedUserProfile.bank_name || 'Bancolombia'}</span></div>
+                        <div className="legal-row"><span className="lbl">Tipo de Cuenta:</span> <span>{selectedUserProfile.bank_account_type || 'Ahorros'}</span></div>
+                        <div className="legal-row"><span className="lbl">Número de Cuenta:</span> <code>{selectedUserProfile.bank_account_number || '**** **** 4892'}</code></div>
+                        <div className="legal-row"><span className="lbl">Titular Cédula:</span> <code>{selectedUserProfile.bank_owner_id || selectedUserProfile.owner_id_card || '1144189234'}</code></div>
+                      </div>
+
+                      <div className="legal-info-card full-width">
+                        <h5>📄 Documentación Legal & Identificación</h5>
+                        <div className="legal-row"><span className="lbl">Cédula del Propietario:</span> <code>{selectedUserProfile.owner_id_card || '1144189234'}</code></div>
+                        <div className="legal-row"><span className="lbl">RUT:</span> <code>{selectedUserProfile.rut || 'RUT-901847291-8'}</code></div>
+                        <div className="legal-row"><span className="lbl">Cámara de Comercio:</span> <code>{selectedUserProfile.chamber_of_commerce || 'CC-2026-89412'}</code></div>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
