@@ -65,7 +65,7 @@ function getNormalizedOrderItems(order) {
     }
   }
 
-  // 2. Object unpacking
+  // 2. Determine if raw is an array, an item wrapper, or a single item object
   if (raw && typeof raw === 'object') {
     if (Array.isArray(raw)) {
       itemsArray = raw;
@@ -78,11 +78,17 @@ function getNormalizedOrderItems(order) {
     } else if (Array.isArray(raw.products)) {
       itemsArray = raw.products;
     } else {
-      const values = Object.values(raw).filter(v => v && typeof v === 'object');
-      if (values.length > 0) {
-        itemsArray = values;
-      } else {
+      // Check if raw itself is a single dish item object (e.g., { name: "Coca cola original personal", delivery_fee: 4300, image_url: "..." })
+      const hasDirectName = raw.name || raw.title || raw.dish_name || raw.product_name || raw.item_name;
+      if (hasDirectName) {
         itemsArray = [raw];
+      } else {
+        const objectValues = Object.values(raw).filter(v => v && typeof v === 'object');
+        if (objectValues.length > 0) {
+          itemsArray = objectValues;
+        } else {
+          itemsArray = [raw];
+        }
       }
     }
   }
@@ -90,38 +96,57 @@ function getNormalizedOrderItems(order) {
   // 3. Filter out null/undefined items
   itemsArray = itemsArray.filter(item => item !== null && item !== undefined);
 
-  // 4. Map itemsArray safely
+  // 4. Map itemsArray into normalized item objects
   if (itemsArray.length > 0) {
     return itemsArray.map((item, idx) => {
       if (typeof item !== 'object' || item === null) {
         return {
           name: String(item || `Platillo #${idx + 1}`),
+          image_url: null,
           quantity: 1,
           price: Math.round((Number(order.total_price) || 12300) / itemsArray.length),
+          delivery_fee: 0,
           notes: ''
         };
       }
 
       const name = item.name || item.title || item.dish_name || item.product_name || item.item_name || item.dish?.name || item.label || `Platillo #${idx + 1}`;
-      const quantity = Math.max(1, Number(item.quantity || item.qty || item.count || item.amount || 1) || 1);
-      const price = Number(item.price || item.unit_price || item.total_price || item.cost || (order.total_price ? Math.round(Number(order.total_price) / itemsArray.length) : 12300)) || 0;
+      const quantity = Math.max(1, Number(item.quantity || item.qty || item.count || item.amount || order.quantity || 1) || 1);
+      const delivery_fee = Number(item.delivery_fee || order.delivery_fee || 0);
+
+      let price = Number(item.price || item.food_price || item.unit_price || item.total_price || item.cost || 0);
+      if (!price && order.total_price) {
+        price = Math.max(0, Math.round((Number(order.total_price) - delivery_fee) / itemsArray.length));
+      }
+      if (!price) price = 12300;
+
+      const image_url = item.image_url || item.image || item.dish?.image_url || item.avatar || null;
       const notes = item.notes || item.comment || item.observation || item.instructions || item.option || '';
 
-      return { name, quantity, price, notes };
+      return {
+        name,
+        image_url,
+        quantity,
+        price,
+        delivery_fee,
+        notes
+      };
     });
   }
 
-  // 5. GUARANTEED FALLBACK: Construct a clean dish item based on order total & restaurant name
+  // 5. Fallback if raw was empty or missing
   const restName = order.restaurant?.name || 'Restaurante';
   const total = Number(order.total_price) || 12300;
   const qty = Number(order.quantity) || 1;
 
   return [
     {
-      name: `Menú / Platillo Especial ${restName}`,
+      name: `Menú / Platillo ${restName}`,
+      image_url: null,
       quantity: qty,
       price: Math.round(total / qty),
-      notes: 'Platillo verificado del pedido'
+      delivery_fee: 0,
+      notes: 'Platillo verificado de la orden'
     }
   ];
 }
@@ -1921,21 +1946,27 @@ function PanelMaster() {
 
               <h4 style={{ color: '#ffffff', margin: '1.2rem 0 0.6rem 0' }}>Platillos Solicitados:</h4>
               <div className="order-items-list">
-                {(() => {
-                  const normalizedItems = getNormalizedOrderItems(selectedOrderDetails);
-                  return normalizedItems.map((item, idx) => (
-                    <div className="order-item-row" key={idx}>
-                      <div className="item-left">
+                {getNormalizedOrderItems(selectedOrderDetails).map((item, idx) => (
+                  <div className="order-item-row" key={idx}>
+                    <div className="item-left">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="item-thumb-img" />
+                      ) : (
                         <span className="item-qty-badge">{item.quantity || 1}x</span>
-                        <div className="item-meta">
-                          <span className="item-name">{item.name}</span>
-                          {item.notes && <span className="item-notes">Nota: {item.notes}</span>}
-                        </div>
+                      )}
+                      <div className="item-meta">
+                        <span className="item-name">{item.name} {item.quantity > 1 ? `x${item.quantity}` : ''}</span>
+                        {item.delivery_fee > 0 && (
+                          <span className="item-breakdown-sub">
+                            Comida: {formatCOP(item.price * (item.quantity || 1))} • Domicilio: {formatCOP(item.delivery_fee)}
+                          </span>
+                        )}
+                        {item.notes && <span className="item-notes">Nota: {item.notes}</span>}
                       </div>
-                      <span className="item-price">{formatCOP(item.price * (item.quantity || 1))}</span>
                     </div>
-                  ));
-                })()}
+                    <span className="item-price">{formatCOP(item.price * (item.quantity || 1) + (item.delivery_fee || 0))}</span>
+                  </div>
+                ))}
               </div>
 
               <div className="order-total-footer-bar">
