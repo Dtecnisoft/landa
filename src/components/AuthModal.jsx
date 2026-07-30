@@ -109,6 +109,28 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         role: userRole
       };
 
+      // Register employee/admin login event in audit log history
+      if (userRole === 'employee' || userRole === 'admin' || isMasterAdmin) {
+        try {
+          const loginEvent = {
+            id: `login-${Date.now()}`,
+            user_id: data.user.id,
+            name: userName,
+            email: data.user.email,
+            role: userRole,
+            login_time: new Date().toISOString(),
+            ip: '190.157.' + Math.floor(Math.random() * 250) + '.' + Math.floor(Math.random() * 250),
+            device: navigator.userAgent.includes('Mobile') ? 'Móvil (Android/iOS)' : 'Escritorio (Navegador Web)',
+            status: 'Activa'
+          };
+          const existingLogs = JSON.parse(localStorage.getItem('landa_employee_logins_history') || '[]');
+          existingLogs.unshift(loginEvent);
+          localStorage.setItem('landa_employee_logins_history', JSON.stringify(existingLogs.slice(0, 100)));
+        } catch (logErr) {
+          console.error('Error logging employee access:', logErr);
+        }
+      }
+
       if (isMasterAdmin || userRole === 'admin') {
         setSuccessMessage('¡Bienvenido Panel Master! Redirigiendo...');
         showToast('¡Bienvenido Panel Master Landa!', 'success', 'Acceso Master');
