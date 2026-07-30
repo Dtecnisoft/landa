@@ -996,7 +996,7 @@ function PanelMaster() {
               <span>📅 {getFormattedDate()}</span>
             </div>
             <h1 className="banner-greeting">{getGreeting()} Master</h1>
-            <p className="banner-subtext">Centro de Monitoreo & Auditoría General de la Plataforma Landa.</p>
+            <p className="banner-subtext">Centro de Monitoreo y Auditoría General de la Plataforma Landa.</p>
           </div>
 
           <div className="banner-right">
@@ -1031,7 +1031,7 @@ function PanelMaster() {
               onClick={() => setActiveTab('drivers')}
             >
               <span className="tab-icon">🚗</span>
-              <span>Conductores & En Vivo</span>
+              <span>Conductores y En Vivo</span>
               <span className="pulse-live-tag">● LIVE</span>
             </button>
 
@@ -1165,7 +1165,7 @@ function PanelMaster() {
 
             {/* GESTIÓN RÁPIDA */}
             <section className="master-section">
-              <h2 className="master-section-title">Gestión Rápida & Accesos</h2>
+              <h2 className="master-section-title">Gestión Rápida y Accesos</h2>
               <div className="quick-actions-grid">
                 <button className="quick-action-card" onClick={() => setActiveTab('restaurants')}>
                   <div className="action-icon-box brown">
@@ -1272,7 +1272,7 @@ function PanelMaster() {
                         <th>PUNTOS</th>
                         <th>ESTADO</th>
                         <th>CIUDAD</th>
-                        <th>PERFIL & PUBLICACIONES</th>
+                        <th>PERFIL Y PUBLICACIONES</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1408,7 +1408,7 @@ function PanelMaster() {
                       <th>CÓDIGO / ID</th>
                       <th>RESTAURANTE</th>
                       <th>CLIENTE / DESTINO</th>
-                      <th>ITEMS & CANTIDAD</th>
+                      <th>ÍTEMS Y CANTIDAD</th>
                       <th>TOTAL</th>
                       <th>ESTADO</th>
                       <th>FECHA / HORA</th>
@@ -1685,7 +1685,7 @@ function PanelMaster() {
                       <th>USUARIO / CLIENTE</th>
                       <th>CONDUCTOR ASIGNADO</th>
                       <th>TIPO DE VEHÍCULO</th>
-                      <th>ORIGEN & DESTINO</th>
+                      <th>ORIGEN Y DESTINO</th>
                       <th>DISTANCIA / TIEMPO</th>
                       <th>TARIFA PAGADA</th>
                       <th>ESTADO</th>
@@ -1773,7 +1773,7 @@ function PanelMaster() {
                     </div>
                     <div className="emp-stat">
                       <span className="stat-label">Especialidad:</span>
-                      <span className="specialty-tag">💼 Soporte & Auditoría</span>
+                      <span className="specialty-tag">💼 Soporte y Auditoría</span>
                     </div>
                     <div className="emp-stat">
                       <span className="stat-label">Estado:</span>
@@ -2075,7 +2075,7 @@ function PanelMaster() {
                   className={`user-modal-tab ${userModalTab === 'info' ? 'active' : ''}`}
                   onClick={() => setUserModalTab('info')}
                 >
-                  📋 Información Legal & Bancaria
+                  📋 Información Legal y Bancaria
                 </button>
               )}
             </div>
@@ -2154,7 +2154,7 @@ function PanelMaster() {
                   {userModalTab === 'info' && selectedUserProfile.role === 'restaurant' && (
                     <div className="user-legal-info-grid">
                       <div className="legal-info-card">
-                        <h5>📍 Datos de Contacto & Ubicación</h5>
+                        <h5>📍 Datos de Contacto y Ubicación</h5>
                         <div className="legal-row"><span className="lbl">Dirección:</span> <span>{selectedUserProfile.address || 'No registrada'}</span></div>
                         <div className="legal-row"><span className="lbl">Ciudad:</span> <span>{selectedUserProfile.city || 'Cali'}</span></div>
                         <div className="legal-row"><span className="lbl">Teléfono:</span> <span>{selectedUserProfile.phone || 'No registrado'}</span></div>
@@ -2162,7 +2162,7 @@ function PanelMaster() {
                       </div>
 
                       <div className="legal-info-card">
-                        <h5>🏦 Información Bancaria & Pagos</h5>
+                        <h5>🏦 Información Bancaria y Pagos</h5>
                         <div className="legal-row"><span className="lbl">Banco:</span> <span>{selectedUserProfile.bank_name || 'No registrado'}</span></div>
                         <div className="legal-row"><span className="lbl">Tipo de Cuenta:</span> <span>{selectedUserProfile.bank_account_type || 'No registrado'}</span></div>
                         <div className="legal-row"><span className="lbl">Número de Cuenta:</span> <code>{selectedUserProfile.bank_account_number || 'No registrado'}</code></div>
@@ -2170,7 +2170,7 @@ function PanelMaster() {
                       </div>
 
                       <div className="legal-info-card full-width">
-                        <h5>📄 Documentación Legal & Identificación</h5>
+                        <h5>📄 Documentación Legal e Identificación</h5>
                         <div className="legal-row"><span className="lbl">Cédula del Propietario:</span> <code>{selectedUserProfile.owner_id_card || 'No registrada'}</code></div>
                         <div className="legal-row"><span className="lbl">RUT:</span> <code>{selectedUserProfile.rut || 'No registrado'}</code></div>
                         <div className="legal-row"><span className="lbl">Cámara de Comercio:</span> <code>{selectedUserProfile.chamber_of_commerce || 'No registrada'}</code></div>

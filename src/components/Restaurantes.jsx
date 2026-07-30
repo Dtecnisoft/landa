@@ -121,7 +121,7 @@ const DEFAULT_RESTAURANTS = [
   {
     id: '30c904ca-e021-4d77-adff-5f80f8059151',
     name: 'King Pizza',
-    food_type: 'Pizzas & Comida Rápida',
+    food_type: 'Pizzas y Comida Rápida',
     address: 'Calle 10 #7-30',
     city: 'Jamundí',
     phone: '3175863948',
@@ -135,7 +135,7 @@ const DEFAULT_RESTAURANTS = [
   {
     id: 'caab2e2e-b6f7-4764-bfd4-485017fb64d4',
     name: 'Sabroso',
-    food_type: 'Burgers & Comida Rápida',
+    food_type: 'Burgers y Comida Rápida',
     address: 'Local 22',
     city: 'Cali',
     phone: '3157412255',
@@ -149,7 +149,7 @@ const DEFAULT_RESTAURANTS = [
   {
     id: 'ea104a4c-7e6e-4b67-afc9-6ebe0b1ed4a6',
     name: 'Anchico',
-    food_type: 'Mariscos & Comida Típica',
+    food_type: 'Mariscos y Comida Típica',
     address: 'Carrera 7Lbis 76 95',
     city: 'Cali',
     phone: '573127526896',
@@ -163,7 +163,7 @@ const DEFAULT_RESTAURANTS = [
   {
     id: '45f2242f-10df-438d-b418-198325404806',
     name: 'Delicias Sarah',
-    food_type: 'Saludable & Mar',
+    food_type: 'Saludable y Mar',
     address: 'Cra 26p#7386',
     city: 'Cali',
     phone: '3174116341',
@@ -177,7 +177,7 @@ const DEFAULT_RESTAURANTS = [
   {
     id: '820763bb-27f3-415c-ab8f-512440723ce7',
     name: 'Rey Burger',
-    food_type: 'Burgers & Comida Rápida',
+    food_type: 'Burgers y Comida Rápida',
     address: 'Calle Principal #12-40',
     city: 'Cali',
     phone: '3175863948',
@@ -711,7 +711,7 @@ function Restaurantes() {
                       onClick={() => setSelectedRestaurantModal(rest)}
                     >
                       <RestIcons.MenuBook />
-                      <span>Ver Carta de Platos & Información</span>
+                      <span>Ver Carta de Platos e Información</span>
                     </button>
                   </div>
                 </div>
@@ -802,7 +802,7 @@ function Restaurantes() {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h4 style={{ color: '#ffffff', margin: 0, fontSize: '1.15rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <RestIcons.Utensils /> Menú & Especialidades ({modalDishes.length})
+                    <RestIcons.Utensils /> Menú y Especialidades ({modalDishes.length})
                   </h4>
                   <span style={{ fontSize: '0.8rem', color: '#f97316', fontWeight: 700 }}>
                     Precios sugeridos en COP
