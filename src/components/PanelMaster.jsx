@@ -248,62 +248,8 @@ function PanelMaster() {
           : Promise.resolve({ data: [] })
       ]);
 
-      let posts = postsRes.data || [];
-      let dishes = dishesRes.data || [];
-
-      // Fallback demo data if DB table has 0 posts for this user
-      if (posts.length === 0) {
-        posts = [
-          {
-            id: `post-u1-${userObj.id}`,
-            title: userObj.role === 'restaurant' ? `Especialidad de la Casa - ${userObj.name}` : `Publicación de ${userObj.name}`,
-            price: userObj.role === 'restaurant' ? '$28.500' : '$15.000',
-            category: userObj.role === 'restaurant' ? 'Gastronomía' : 'General',
-            image_url: userObj.avatar || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop',
-            status: 'approved',
-            likes: 38,
-            comments: 6,
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString()
-          },
-          {
-            id: `post-u2-${userObj.id}`,
-            title: userObj.role === 'restaurant' ? 'Promoción 2x1 en Menú Ejecutivo' : 'Recomendación & Experiencia Landa',
-            price: '$35.000',
-            category: 'Promoción',
-            image_url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&auto=format&fit=crop',
-            status: 'approved',
-            likes: 64,
-            comments: 12,
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString()
-          }
-        ];
-      }
-
-      if (userObj.role === 'restaurant' && dishes.length === 0) {
-        dishes = [
-          {
-            id: `dish-u1-${userObj.id}`,
-            name: 'Plato Especial Gourmet',
-            description: 'Receta artesanal preparada con ingredientes frescos de la región.',
-            category: 'Plato Fuerte',
-            price: 32000,
-            image_url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop',
-            created_at: new Date().toISOString()
-          },
-          {
-            id: `dish-u2-${userObj.id}`,
-            name: 'Bebida Refrescante Frutal',
-            description: 'Jugo natural de frutos amarillos y hierbabuena.',
-            category: 'Bebidas',
-            price: 7500,
-            image_url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=500&auto=format&fit=crop',
-            created_at: new Date().toISOString()
-          }
-        ];
-      }
-
-      setUserPosts(posts);
-      setUserDishes(dishes);
+      setUserPosts(postsRes.data || []);
+      setUserDishes(dishesRes.data || []);
     } catch (e) {
       console.error('Error loading user profile data:', e);
     } finally {
@@ -2217,17 +2163,17 @@ function PanelMaster() {
 
                       <div className="legal-info-card">
                         <h5>🏦 Información Bancaria & Pagos</h5>
-                        <div className="legal-row"><span className="lbl">Banco:</span> <span>{selectedUserProfile.bank_name || 'Bancolombia'}</span></div>
-                        <div className="legal-row"><span className="lbl">Tipo de Cuenta:</span> <span>{selectedUserProfile.bank_account_type || 'Ahorros'}</span></div>
-                        <div className="legal-row"><span className="lbl">Número de Cuenta:</span> <code>{selectedUserProfile.bank_account_number || '**** **** 4892'}</code></div>
-                        <div className="legal-row"><span className="lbl">Titular Cédula:</span> <code>{selectedUserProfile.bank_owner_id || selectedUserProfile.owner_id_card || '1144189234'}</code></div>
+                        <div className="legal-row"><span className="lbl">Banco:</span> <span>{selectedUserProfile.bank_name || 'No registrado'}</span></div>
+                        <div className="legal-row"><span className="lbl">Tipo de Cuenta:</span> <span>{selectedUserProfile.bank_account_type || 'No registrado'}</span></div>
+                        <div className="legal-row"><span className="lbl">Número de Cuenta:</span> <code>{selectedUserProfile.bank_account_number || 'No registrado'}</code></div>
+                        <div className="legal-row"><span className="lbl">Titular Cédula:</span> <code>{selectedUserProfile.bank_owner_id || selectedUserProfile.owner_id_card || 'No registrada'}</code></div>
                       </div>
 
                       <div className="legal-info-card full-width">
                         <h5>📄 Documentación Legal & Identificación</h5>
-                        <div className="legal-row"><span className="lbl">Cédula del Propietario:</span> <code>{selectedUserProfile.owner_id_card || '1144189234'}</code></div>
-                        <div className="legal-row"><span className="lbl">RUT:</span> <code>{selectedUserProfile.rut || 'RUT-901847291-8'}</code></div>
-                        <div className="legal-row"><span className="lbl">Cámara de Comercio:</span> <code>{selectedUserProfile.chamber_of_commerce || 'CC-2026-89412'}</code></div>
+                        <div className="legal-row"><span className="lbl">Cédula del Propietario:</span> <code>{selectedUserProfile.owner_id_card || 'No registrada'}</code></div>
+                        <div className="legal-row"><span className="lbl">RUT:</span> <code>{selectedUserProfile.rut || 'No registrado'}</code></div>
+                        <div className="legal-row"><span className="lbl">Cámara de Comercio:</span> <code>{selectedUserProfile.chamber_of_commerce || 'No registrada'}</code></div>
                       </div>
                     </div>
                   )}
