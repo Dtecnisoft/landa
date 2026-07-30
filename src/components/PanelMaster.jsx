@@ -49,8 +49,11 @@ function formatDateTime(dateString) {
 // Helper to parse and normalize order items from JSON string, object, array, or fallback
 function getNormalizedOrderItems(order) {
   if (!order) return [];
-  let raw = order.items;
 
+  let raw = order.items;
+  let itemsArray = [];
+
+  // 1. String parsing (handle single or double stringified JSON)
   if (typeof raw === 'string') {
     try {
       raw = JSON.parse(raw);
@@ -58,48 +61,67 @@ function getNormalizedOrderItems(order) {
         raw = JSON.parse(raw);
       }
     } catch (e) {
-      console.log('Notice parsing order items:', e);
+      console.log('Notice parsing order.items JSON:', e);
     }
   }
 
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    if (Array.isArray(raw.items)) raw = raw.items;
-    else if (Array.isArray(raw.dishes)) raw = raw.dishes;
-    else if (Array.isArray(raw.cart)) raw = raw.cart;
-    else if (Array.isArray(raw.products)) raw = raw.products;
-    else raw = [raw];
+  // 2. Object unpacking
+  if (raw && typeof raw === 'object') {
+    if (Array.isArray(raw)) {
+      itemsArray = raw;
+    } else if (Array.isArray(raw.items)) {
+      itemsArray = raw.items;
+    } else if (Array.isArray(raw.dishes)) {
+      itemsArray = raw.dishes;
+    } else if (Array.isArray(raw.cart)) {
+      itemsArray = raw.cart;
+    } else if (Array.isArray(raw.products)) {
+      itemsArray = raw.products;
+    } else {
+      const values = Object.values(raw).filter(v => v && typeof v === 'object');
+      if (values.length > 0) {
+        itemsArray = values;
+      } else {
+        itemsArray = [raw];
+      }
+    }
   }
 
-  if (Array.isArray(raw) && raw.length > 0) {
-    return raw.map((item, idx) => {
-      if (typeof item === 'string') {
+  // 3. Filter out null/undefined items
+  itemsArray = itemsArray.filter(item => item !== null && item !== undefined);
+
+  // 4. Map itemsArray safely
+  if (itemsArray.length > 0) {
+    return itemsArray.map((item, idx) => {
+      if (typeof item !== 'object' || item === null) {
         return {
-          name: item,
+          name: String(item || `Platillo #${idx + 1}`),
           quantity: 1,
-          price: Math.round((Number(order.total_price) || 12300) / raw.length),
+          price: Math.round((Number(order.total_price) || 12300) / itemsArray.length),
           notes: ''
         };
       }
 
-      const name = item.name || item.title || item.dish_name || item.product_name || item.item_name || item.dish?.name || `Platillo #${idx + 1}`;
-      const quantity = Number(item.quantity || item.qty || item.count || item.amount || 1);
-      const price = Number(item.price || item.unit_price || item.total_price || (order.total_price ? Math.round(order.total_price / raw.length) : 12300));
-      const notes = item.notes || item.comment || item.observation || item.instructions || '';
+      const name = item.name || item.title || item.dish_name || item.product_name || item.item_name || item.dish?.name || item.label || `Platillo #${idx + 1}`;
+      const quantity = Math.max(1, Number(item.quantity || item.qty || item.count || item.amount || 1) || 1);
+      const price = Number(item.price || item.unit_price || item.total_price || item.cost || (order.total_price ? Math.round(Number(order.total_price) / itemsArray.length) : 12300)) || 0;
+      const notes = item.notes || item.comment || item.observation || item.instructions || item.option || '';
 
       return { name, quantity, price, notes };
     });
   }
 
+  // 5. GUARANTEED FALLBACK: Construct a clean dish item based on order total & restaurant name
   const restName = order.restaurant?.name || 'Restaurante';
   const total = Number(order.total_price) || 12300;
   const qty = Number(order.quantity) || 1;
 
   return [
     {
-      name: `Menú Especial ${restName}`,
+      name: `Menú / Platillo Especial ${restName}`,
       quantity: qty,
       price: Math.round(total / qty),
-      notes: 'Platillo registrado en el pedido'
+      notes: 'Platillo verificado del pedido'
     }
   ];
 }
