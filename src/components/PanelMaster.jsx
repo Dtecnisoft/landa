@@ -668,14 +668,36 @@ function PanelMaster() {
     return fullName || u.email?.split('@')[0] || 'Usuario';
   };
 
+  // Dynamic list of registered restaurants from usersList (where role === 'restaurant') & ordersList
+  const registeredRestaurants = Array.from(
+    new Map(
+      [
+        ...usersList.filter(u => u.role === 'restaurant').map(u => ({
+          id: u.id,
+          name: u.name || u.email?.split('@')[0] || 'Restaurante',
+          food_type: u.food_type || ''
+        })),
+        ...ordersList.map(o => ({
+          id: o.restaurant_id || o.restaurant?.name || 'rest',
+          name: o.restaurant?.name || 'Restaurante',
+          food_type: o.restaurant?.food_type || ''
+        })).filter(r => r.name)
+      ].map(r => [r.name.toLowerCase().trim(), r])
+    ).values()
+  );
+
   // Filter Orders for Restaurants tab
   const filteredOrders = ordersList.filter(o => {
     const restName = o.restaurant?.name || '';
+    const restId = o.restaurant_id || '';
     const clientName = `${o.client?.name || ''} ${o.client?.last_name || ''}`;
     const code = o.delivery_code || o.id || '';
 
-    if (restaurantFilter !== 'all' && o.restaurant_id !== restaurantFilter && restName !== restaurantFilter) {
-      return false;
+    if (restaurantFilter !== 'all') {
+      const filterLower = restaurantFilter.toLowerCase().trim();
+      const matchName = restName.toLowerCase().trim() === filterLower;
+      const matchId = restId === filterLower;
+      if (!matchName && !matchId) return false;
     }
     if (orderStatusFilter !== 'all' && o.status !== orderStatusFilter) {
       return false;
@@ -1143,11 +1165,12 @@ function PanelMaster() {
               <div className="filter-item">
                 <label>Filtrar por Restaurante:</label>
                 <select value={restaurantFilter} onChange={(e) => setRestaurantFilter(e.target.value)}>
-                  <option value="all">Todos los Restaurantes</option>
-                  <option value="El Rancherito Valluno">El Rancherito Valluno</option>
-                  <option value="Pizzería Italia Bella">Pizzería Italia Bella</option>
-                  <option value="Burger Factory Master">Burger Factory Master</option>
-                  <option value="Sushi Master Nikkei">Sushi Master Nikkei</option>
+                  <option value="all">Todos los Restaurantes ({registeredRestaurants.length})</option>
+                  {registeredRestaurants.map((r) => (
+                    <option key={r.id || r.name} value={r.name}>
+                      {r.name} {r.food_type ? `• ${r.food_type}` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
 
