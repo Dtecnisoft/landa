@@ -2124,12 +2124,14 @@ function PanelMaster() {
                 </button>
               )}
 
-              <button
-                className={`user-modal-tab ${userModalTab === 'info' ? 'active' : ''}`}
-                onClick={() => setUserModalTab('info')}
-              >
-                📋 Información Legal & Bancaria
-              </button>
+              {selectedUserProfile.role === 'restaurant' && (
+                <button
+                  className={`user-modal-tab ${userModalTab === 'info' ? 'active' : ''}`}
+                  onClick={() => setUserModalTab('info')}
+                >
+                  📋 Información Legal & Bancaria
+                </button>
+              )}
             </div>
 
             {/* Tab Body */}
@@ -2174,7 +2176,7 @@ function PanelMaster() {
                   )}
 
                   {/* TAB 2: DISHES (RESTAURANT) */}
-                  {userModalTab === 'dishes' && (
+                  {userModalTab === 'dishes' && selectedUserProfile.role === 'restaurant' && (
                     <div className="user-posts-grid">
                       {userDishes.length > 0 ? (
                         userDishes.map((dish) => (
@@ -2202,8 +2204,8 @@ function PanelMaster() {
                     </div>
                   )}
 
-                  {/* TAB 3: LEGAL & BANK INFO */}
-                  {userModalTab === 'info' && (
+                  {/* TAB 3: LEGAL & BANK INFO (RESTAURANT ONLY) */}
+                  {userModalTab === 'info' && selectedUserProfile.role === 'restaurant' && (
                     <div className="user-legal-info-grid">
                       <div className="legal-info-card">
                         <h5>📍 Datos de Contacto & Ubicación</h5>
