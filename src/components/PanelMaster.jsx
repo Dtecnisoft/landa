@@ -686,6 +686,58 @@ function PanelMaster() {
     ).values()
   );
 
+  // Helper matching order status flexibly across English & Spanish values
+  const matchOrderStatus = (orderStatus, filterValue) => {
+    if (!filterValue || filterValue === 'all') return true;
+    if (!orderStatus) return false;
+
+    const status = String(orderStatus).toLowerCase().trim();
+    const filter = String(filterValue).toLowerCase().trim();
+
+    if (status === filter) return true;
+
+    if (filter === 'in_preparation' || filter === 'pending') {
+      return status === 'in_preparation' || status === 'preparing' || status === 'pending' || status.includes('prepar') || status.includes('pendien');
+    }
+    if (filter === 'on_the_way') {
+      return status === 'on_the_way' || status === 'delivering' || status === 'en_camino' || status.includes('camino') || status.includes('despach');
+    }
+    if (filter === 'completed' || filter === 'delivered') {
+      return status === 'completed' || status === 'delivered' || status === 'entregado' || status.includes('entregad') || status.includes('completad') || status.includes('aprobad');
+    }
+    if (filter === 'cancelled' || filter === 'canceled') {
+      return status === 'cancelled' || status === 'canceled' || status === 'cancelado' || status.includes('cancel');
+    }
+
+    return status.includes(filter);
+  };
+
+  // Helper matching ride status flexibly
+  const matchRideStatus = (rideStatus, filterValue) => {
+    if (!filterValue || filterValue === 'all') return true;
+    if (!rideStatus) return false;
+
+    const status = String(rideStatus).toLowerCase().trim();
+    const filter = String(filterValue).toLowerCase().trim();
+
+    if (status === filter) return true;
+
+    if (filter === 'in_progress') {
+      return status === 'in_progress' || status === 'accepted' || status === 'active' || status.includes('curso') || status.includes('acepta');
+    }
+    if (filter === 'completed') {
+      return status === 'completed' || status === 'finished' || status === 'delivered' || status.includes('completa') || status.includes('finaliza');
+    }
+    if (filter === 'cancelled' || filter === 'canceled') {
+      return status === 'cancelled' || status === 'canceled' || status.includes('cancel');
+    }
+    if (filter === 'pending') {
+      return status === 'pending' || status.includes('pendien') || status.includes('solicita');
+    }
+
+    return status.includes(filter);
+  };
+
   // Filter Orders for Restaurants tab
   const filteredOrders = ordersList.filter(o => {
     const restName = o.restaurant?.name || '';
@@ -699,7 +751,7 @@ function PanelMaster() {
       const matchId = restId === filterLower;
       if (!matchName && !matchId) return false;
     }
-    if (orderStatusFilter !== 'all' && o.status !== orderStatusFilter) {
+    if (!matchOrderStatus(o.status, orderStatusFilter)) {
       return false;
     }
     if (orderSearchQuery.trim().length > 0) {
@@ -715,7 +767,7 @@ function PanelMaster() {
     const clientName = r.client_name || `${r.client?.name || ''} ${r.client?.last_name || ''}`;
     const vehicle = r.vehicle_info || r.vehicle_type || '';
 
-    if (driverStatusFilter !== 'all' && r.status !== driverStatusFilter) {
+    if (!matchRideStatus(r.status, driverStatusFilter)) {
       return false;
     }
     if (driverSearchQuery.trim().length > 0) {
@@ -732,7 +784,7 @@ function PanelMaster() {
     const originAddr = r.origin?.address || '';
     const destAddr = r.destination?.address || '';
 
-    if (userRideStatusFilter !== 'all' && r.status !== userRideStatusFilter) {
+    if (!matchRideStatus(r.status, userRideStatusFilter)) {
       return false;
     }
     if (userRideSearchQuery.trim().length > 0) {
