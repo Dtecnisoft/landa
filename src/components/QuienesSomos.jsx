@@ -107,7 +107,7 @@ function QuienesSomos() {
         </div>
 
         {/* MISIÓN & VISIÓN GRID */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '2rem', marginBottom: '4.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '2rem', marginBottom: '4.5rem' }}>
           <div style={{
             background: '#0f172a',
             padding: '2.2rem',
@@ -196,7 +196,7 @@ function QuienesSomos() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '2rem', justifyContent: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '2rem', justifyContent: 'center' }}>
             {TEAM_MEMBERS.map((member, idx) => (
               <div key={idx} style={{
                 background: '#0f172a',

@@ -6,3 +6,9 @@ En el perfil máster debemos ver el historial de cada:
 * Conductores de los viajes y en tiempo real de un viaje en curso 
 * Usuarios de los viajes 
 * Inicio de sesión de empleados
+
+
+Menu de turismo.
+Menu de ventas.
+
+

@@ -90,7 +90,7 @@ function Caracteristicas() {
         </div>
 
         {/* FEATURES GRID */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: '1.75rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1.75rem' }}>
           {features.map((feature) => {
             const themeColor = feature.btnColor || '#ea580c';
             return (

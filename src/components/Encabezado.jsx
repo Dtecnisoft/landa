@@ -1,21 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import logo from '../assets/images/logo.png';
 import AuthModal from './AuthModal';
 import { supabase } from '../supabaseClient';
-
 import { useToast } from '../context/ToastContext';
 
 function Encabezado() {
   const { showToast } = useToast();
+  const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const userMenuRef = useRef(null);
 
+  // Scroll position detection for header translucency transition
   useEffect(() => {
-    // 1. Check local storage
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        setScrolled(true);
+      } else {
+        setScrolled(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // 1. Check local storage & Supabase session
+  useEffect(() => {
     const savedUser = localStorage.getItem('landa_user');
     if (savedUser) {
       try {
@@ -25,7 +39,6 @@ function Encabezado() {
       }
     }
 
-    // 2. Check Supabase session & role
     const syncUserSession = async (userObj) => {
       if (!userObj) return;
       let userRole = 'client';
@@ -65,7 +78,6 @@ function Encabezado() {
       }
     });
 
-    // 3. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         syncUserSession(session.user);
@@ -80,23 +92,41 @@ function Encabezado() {
     };
   }, []);
 
+  // Handle outside click & escape key to close menus
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setIsUserMenuOpen(false);
       }
     };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsUserMenuOpen(false);
+        setIsMenuOpen(false);
+      }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
+  // Prevent background scroll when mobile drawer is active
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMenuOpen]);
 
-  const closeMenu = () => {
-    setIsMenuOpen(false);
-  };
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  const closeMenu = () => setIsMenuOpen(false);
 
   const openLogin = () => {
     setIsAuthOpen(true);
@@ -121,82 +151,96 @@ function Encabezado() {
     showToast('Sesión cerrada correctamente. ¡Hasta pronto!', 'info', 'Cierre de Sesión');
   };
 
+  const getRoleLabel = (role, isEmployee) => {
+    if (role === 'admin' || role === 'master') return 'Administrador Master';
+    if (role === 'employee' || isEmployee) return 'Equipo / Empleado';
+    if (role === 'restaurant' || role === 'restaurante') return 'Aliado Restaurante';
+    return 'Cliente';
+  };
+
+  const navItems = [
+    {
+      label: 'Inicio',
+      path: '/',
+      icon: (
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
+        </svg>
+      )
+    },
+    {
+      label: 'Restaurantes',
+      path: '/restaurantes',
+      icon: (
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+          <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+          <line x1="6" y1="1" x2="6" y2="4" />
+          <line x1="10" y1="1" x2="10" y2="4" />
+          <line x1="14" y1="1" x2="14" y2="4" />
+        </svg>
+      )
+    },
+    {
+      label: 'Quiénes Somos',
+      path: '/quienes-somos',
+      icon: (
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      )
+    },
+    {
+      label: 'Soporte y Contacto',
+      path: '/contacto',
+      icon: (
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      )
+    }
+  ];
+
   return (
     <>
-      <header className="site-header">
+      {/* Backdrop overlay for mobile menu */}
+      {isMenuOpen && (
+        <div 
+          className="header-backdrop" 
+          onClick={closeMenu}
+          aria-hidden="true"
+        />
+      )}
+
+      <header className={`site-header ${scrolled ? 'scrolled' : ''}`}>
         <div className="container header-inner">
-          <Link to="/" className="brand" onClick={closeMenu}>
+          <Link to="/" className="brand" onClick={closeMenu} aria-label="Landa - Página principal">
             <img src={logo} alt="Landa Logo" className="header-logo" />
           </Link>
 
-          <button
-            className={`menu-toggle ${isMenuOpen ? 'open' : ''}`}
-            onClick={toggleMenu}
-            aria-label="Abrir menú de navegación"
-            aria-expanded={isMenuOpen}
-          >
-            <span className="hamburger-bar"></span>
-            <span className="hamburger-bar"></span>
-            <span className="hamburger-bar"></span>
-          </button>
-
-          <nav className={`nav-links ${isMenuOpen ? 'open' : ''}`} aria-label="Navegación principal">
-            <Link to="/" onClick={closeMenu}>Inicio</Link>
-            <Link to="/restaurantes" onClick={closeMenu}>Restaurantes</Link>
-            <Link to="/quienes-somos" onClick={closeMenu}>Quiénes Somos</Link>
-            <Link to="/contacto" onClick={closeMenu}>Soporte y Contacto</Link>
-
-            {/* Mobile Auth Button */}
-            <div className="mobile-auth-actions">
-              {user ? (
-                <div className="mobile-user-info">
-                  <span className="user-greeting">👤 Hola, {user.name}</span>
-                  <button className="btn btn-secondary btn-sm" onClick={handleLogout}>
-                    Cerrar Sesión
-                  </button>
-                </div>
-              ) : (
-                <div className="mobile-auth-buttons">
-                  <button className="btn btn-secondary nav-auth-btn" onClick={openLogin}>
-                    Iniciar Sesión
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <a
-              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary header-cta mobile-only-cta"
-              onClick={closeMenu}
-              style={{
-                background: 'linear-gradient(135deg, #4556EC 0%, #3142c9 100%)',
-                borderColor: '#4556EC',
-                color: '#ffffff',
-                padding: '0.55rem 1.2rem',
-                borderRadius: '50px',
-                boxShadow: '0 6px 20px rgba(69, 86, 236, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.2) inset',
-                alignItems: 'center',
-                gap: '0.65rem',
-                textDecoration: 'none',
-              }}
-            >
-              <span style={{ fontSize: '1.25rem', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '50%', width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                📲
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: 1.15 }}>
-                <span style={{ fontWeight: 900, fontSize: '0.88rem', color: '#ffffff', letterSpacing: '0.2px' }}>
-                  Descargar Landa App
-                </span>
-                <span style={{ fontSize: '0.66rem', color: '#dbe0ff', fontWeight: 600 }}>
-                  ⚡ Gratis • Instalación Rápida
-                </span>
-              </div>
-            </a>
+          {/* Desktop Navigation */}
+          <nav className="nav-links desktop-nav" aria-label="Navegación principal">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={isActive ? 'active' : ''}
+                  onClick={closeMenu}
+                >
+                  {item.label}
+                  {isActive && <span className="nav-active-dot" />}
+                </Link>
+              );
+            })}
           </nav>
 
-          {/* Desktop Actions */}
+          {/* Actions for Desktop */}
           <div className="header-actions desktop-only-actions">
             {user ? (
               <div className="user-menu-container" ref={userMenuRef}>
@@ -204,8 +248,12 @@ function Encabezado() {
                   className="user-profile-btn"
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   aria-expanded={isUserMenuOpen}
+                  aria-haspopup="true"
                 >
-                  <span className="user-avatar">{user.name.charAt(0).toUpperCase()}</span>
+                  <div className="avatar-wrapper">
+                    <span className="user-avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+                    <span className="user-status-dot" title="Usuario Conectado" />
+                  </div>
                   <span className="user-name">{user.name}</span>
                   <span className={`dropdown-caret ${isUserMenuOpen ? 'open' : ''}`}>
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -213,13 +261,21 @@ function Encabezado() {
                     </svg>
                   </span>
                 </button>
+
                 {isUserMenuOpen && (
                   <div className="user-dropdown-menu">
                     <div className="user-dropdown-header">
-                      <strong>{user.name}</strong>
-                      <small>{user.email}</small>
+                      <div className="user-dropdown-info">
+                        <strong>{user.name}</strong>
+                        <small>{user.email}</small>
+                      </div>
+                      <span className={`role-badge ${user.role || 'client'}`}>
+                        {getRoleLabel(user.role, user.isEmployee)}
+                      </span>
                     </div>
+
                     <div className="dropdown-divider"></div>
+
                     {(user.role === 'admin' || user.email?.toLowerCase() === 'admin@landa.com' || user.email?.toLowerCase().includes('master')) && (
                       <Link to="/master" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
                         <span className="dropdown-icon-box purple">
@@ -230,6 +286,7 @@ function Encabezado() {
                         <span>Panel Master</span>
                       </Link>
                     )}
+
                     {(user.role === 'employee' || user.role === 'empleado' || user.isEmployee) && (
                       <Link to="/empleado" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
                         <span className="dropdown-icon-box blue">
@@ -241,6 +298,7 @@ function Encabezado() {
                         <span>Panel Empleado</span>
                       </Link>
                     )}
+
                     {(user.role === 'restaurant' || user.role === 'restaurante') && (
                       <Link to="/restaurante/gestion" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
                         <span className="dropdown-icon-box amber">
@@ -251,14 +309,16 @@ function Encabezado() {
                         <span>Mi Restaurante (Gestión)</span>
                       </Link>
                     )}
+
                     <Link to="/restaurantes" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
                       <span className="dropdown-icon-box cyan">
                         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M6 2v20M18 2v20M12 2v20M2 12h20" />
                         </svg>
                       </span>
-                      <span>Ver Restaurantes</span>
+                      <span>Explorar Restaurantes</span>
                     </Link>
+
                     <Link to="/contacto" className="dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
                       <span className="dropdown-icon-box emerald">
                         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -266,9 +326,11 @@ function Encabezado() {
                           <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
                         </svg>
                       </span>
-                      <span>Ayuda y Soporte</span>
+                      <span>Centro de Ayuda</span>
                     </Link>
+
                     <div className="dropdown-divider"></div>
+
                     <button className="dropdown-item logout-item" onClick={handleLogout}>
                       <span className="dropdown-icon-box red">
                         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -284,43 +346,201 @@ function Encabezado() {
               </div>
             ) : (
               <div className="auth-buttons-desktop">
-                <button className="btn btn-secondary header-auth-btn" onClick={openLogin}>
-                  Iniciar Sesión
+                <button className="btn-secondary-modern" onClick={openLogin}>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <polyline points="10 17 15 12 10 7" />
+                    <line x1="15" y1="12" x2="3" y2="12" />
+                  </svg>
+                  <span>Iniciar Sesión</span>
                 </button>
               </div>
             )}
 
+            {/* App Download CTA */}
             <a
               href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-primary header-cta desktop-cta"
-              style={{
-                background: 'linear-gradient(135deg, #4556EC 0%, #3142c9 100%)',
-                borderColor: '#4556EC',
-                color: '#ffffff',
-                padding: '0.55rem 1.2rem',
-                borderRadius: '50px',
-                boxShadow: '0 6px 20px rgba(69, 86, 236, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.2) inset',
-                alignItems: 'center',
-                gap: '0.65rem',
-                textDecoration: 'none',
-              }}
+              className="btn-download-cta desktop-cta"
             >
-              <span style={{ fontSize: '1.25rem', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '50%', width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                📲
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: 1.15 }}>
-                <span style={{ fontWeight: 900, fontSize: '0.88rem', color: '#ffffff', letterSpacing: '0.2px' }}>
-                  Descargar Landa App
-                </span>
-                <span style={{ fontSize: '0.66rem', color: '#dbe0ff', fontWeight: 600 }}>
-                  ⚡ Gratis • Instalación Rápida
-                </span>
+              <div className="cta-icon-wrapper">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
+                  <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
+                </svg>
               </div>
+              <div className="cta-text">
+                <span className="cta-title">Descargar Landa App</span>
+                <span className="cta-subtitle">Gratis • Instalación rápida</span>
+              </div>
+              <span className="cta-arrow">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </span>
             </a>
           </div>
+
+          {/* Mobile Right Action Bar */}
+          <div className="mobile-header-actions">
+            {user ? (
+              <button 
+                className="mobile-avatar-btn" 
+                onClick={toggleMenu} 
+                aria-label="Abrir menú de usuario"
+              >
+                <span className="user-avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+                <span className="user-status-dot" />
+              </button>
+            ) : (
+              <button className="mobile-login-icon-btn" onClick={openLogin} aria-label="Iniciar Sesión">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+              </button>
+            )}
+
+            {/* Hamburger Toggle */}
+            <button
+              className={`menu-toggle ${isMenuOpen ? 'open' : ''}`}
+              onClick={toggleMenu}
+              aria-label={isMenuOpen ? 'Cerrar menú' : 'Abrir menú de navegación'}
+              aria-expanded={isMenuOpen}
+            >
+              <span className="hamburger-bar"></span>
+              <span className="hamburger-bar"></span>
+              <span className="hamburger-bar"></span>
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Side Drawer Navigation */}
+        <aside className={`mobile-nav-drawer ${isMenuOpen ? 'open' : ''}`} aria-label="Menú móvil">
+          <div className="mobile-drawer-header">
+            <div className="mobile-brand">
+              <img src={logo} alt="Landa Logo" className="mobile-drawer-logo" />
+            </div>
+            <button className="mobile-close-btn" onClick={closeMenu} aria-label="Cerrar menú">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* User info card inside mobile menu */}
+          {user && (
+            <div className="mobile-user-card">
+              <div className="mobile-user-header">
+                <div className="avatar-wrapper">
+                  <span className="mobile-user-avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+                  <span className="user-status-dot" />
+                </div>
+                <div className="mobile-user-meta">
+                  <span className="mobile-user-name">{user.name}</span>
+                  <span className="mobile-user-email">{user.email}</span>
+                </div>
+              </div>
+              <span className={`role-badge ${user.role || 'client'}`}>
+                {getRoleLabel(user.role, user.isEmployee)}
+              </span>
+            </div>
+          )}
+
+          <nav className="mobile-nav-links">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`mobile-nav-item ${isActive ? 'active' : ''}`}
+                  onClick={closeMenu}
+                >
+                  <div className="mobile-nav-item-left">
+                    <span className="mobile-item-icon">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
+                  {isActive && <span className="mobile-active-tag">Actual</span>}
+                </Link>
+              );
+            })}
+
+            {/* Quick Panel Links in Mobile if Logged In */}
+            {user && (
+              <div className="mobile-panel-links">
+                {(user.role === 'admin' || user.email?.toLowerCase() === 'admin@landa.com' || user.email?.toLowerCase().includes('master')) && (
+                  <Link to="/master" className="mobile-nav-item panel-item purple" onClick={closeMenu}>
+                    <div className="mobile-nav-item-left">
+                      <span className="mobile-item-icon">👑</span>
+                      <span>Panel Master</span>
+                    </div>
+                  </Link>
+                )}
+                {(user.role === 'employee' || user.role === 'empleado' || user.isEmployee) && (
+                  <Link to="/empleado" className="mobile-nav-item panel-item blue" onClick={closeMenu}>
+                    <div className="mobile-nav-item-left">
+                      <span className="mobile-item-icon">💼</span>
+                      <span>Panel Empleado</span>
+                    </div>
+                  </Link>
+                )}
+                {(user.role === 'restaurant' || user.role === 'restaurante') && (
+                  <Link to="/restaurante/gestion" className="mobile-nav-item panel-item amber" onClick={closeMenu}>
+                    <div className="mobile-nav-item-left">
+                      <span className="mobile-item-icon">🏪</span>
+                      <span>Gestión Restaurante</span>
+                    </div>
+                  </Link>
+                )}
+              </div>
+            )}
+          </nav>
+
+          <div className="mobile-drawer-footer">
+            <a
+              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-download-cta mobile-cta"
+              onClick={closeMenu}
+            >
+              <div className="cta-icon-wrapper">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.3">
+                  <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
+                  <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
+                </svg>
+              </div>
+              <div className="cta-text">
+                <span className="cta-title">Descargar Landa App</span>
+                <span className="cta-subtitle">Instalación Rápida • Gratis</span>
+              </div>
+            </a>
+
+            {user ? (
+              <button className="btn-mobile-logout" onClick={handleLogout}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                <span>Cerrar Sesión</span>
+              </button>
+            ) : (
+              <button className="btn-secondary-modern full-width" onClick={openLogin}>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                <span>Iniciar Sesión</span>
+              </button>
+            )}
+          </div>
+        </aside>
       </header>
 
       <AuthModal
@@ -333,6 +553,7 @@ function Encabezado() {
 }
 
 export default Encabezado;
+
 
 
 
