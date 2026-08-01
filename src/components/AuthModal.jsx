@@ -62,14 +62,13 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
 
       if (error) {
         if (isMasterAdmin) {
-          const userProfile = { id: 'master-admin-id', email: 'admin@landa.com', name: 'Master' };
-          setSuccessMessage('¡Bienvenido Panel Master! Redirigiendo...');
-          showToast('¡Bienvenido Panel Master Landa!', 'success', 'Acceso Concedido');
+          const userProfile = { id: 'master-admin-id', email: 'admin@landa.com', name: 'Master', role: 'master' };
+          setSuccessMessage('¡Bienvenido Master! Sesión iniciada.');
+          showToast('¡Bienvenido Master Landa!', 'success', 'Acceso Concedido');
           setIsLoading(false);
           setTimeout(() => {
             onLoginSuccess(userProfile);
             onClose();
-            window.location.href = '/master';
           }, 700);
           return;
         }
@@ -102,6 +101,10 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         console.log('Notice checking user role:', checkErr);
       }
 
+      if (isMasterAdmin) {
+        userRole = 'master';
+      }
+
       const userProfile = {
         id: data.user.id,
         email: data.user.email,
@@ -110,7 +113,7 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       };
 
       // Register employee/admin login event in audit log history
-      if (userRole === 'employee' || userRole === 'admin' || isMasterAdmin) {
+      if (userRole === 'employee' || userRole === 'admin' || userRole === 'master' || isMasterAdmin) {
         try {
           const loginEvent = {
             id: `login-${Date.now()}`,
@@ -131,12 +134,12 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         }
       }
 
-      if (isMasterAdmin || userRole === 'admin') {
-        setSuccessMessage('¡Bienvenido Panel Master! Redirigiendo...');
-        showToast('¡Bienvenido Panel Master Landa!', 'success', 'Acceso Master');
+      if (isMasterAdmin || userRole === 'admin' || userRole === 'master') {
+        setSuccessMessage('¡Bienvenido Master!');
+        showToast('¡Bienvenido Master Landa!', 'success', 'Acceso Master');
       } else if (userRole === 'employee') {
-        setSuccessMessage('¡Bienvenido Panel Empleado! Redirigiendo...');
-        showToast(`¡Hola ${userName}, bienvenido al Panel de Empleado!`, 'success', 'Acceso Empleado');
+        setSuccessMessage('¡Bienvenido Empleado!');
+        showToast(`¡Hola ${userName}, bienvenido!`, 'success', 'Acceso Empleado');
       } else {
         setSuccessMessage('¡Sesión iniciada con éxito!');
         showToast(`¡Hola ${userName}, bienvenido de nuevo!`, 'success', 'Inicio de Sesión');
@@ -147,23 +150,17 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       setTimeout(() => {
         onLoginSuccess(userProfile);
         onClose();
-        if (isMasterAdmin || userRole === 'admin') {
-          window.location.href = '/master';
-        } else if (userRole === 'employee') {
-          window.location.href = '/empleado';
-        }
       }, 700);
     } catch (err) {
       console.error('Supabase Auth error:', err);
       if (isMasterAdmin) {
-        const userProfile = { id: 'master-admin-id', email: 'admin@landa.com', name: 'Master' };
-        setSuccessMessage('¡Bienvenido Panel Master! Redirigiendo...');
-        showToast('¡Bienvenido Panel Master Landa!', 'success', 'Acceso Master');
+        const userProfile = { id: 'master-admin-id', email: 'admin@landa.com', name: 'Master', role: 'master' };
+        setSuccessMessage('¡Bienvenido Master!');
+        showToast('¡Bienvenido Master Landa!', 'success', 'Acceso Master');
         setIsLoading(false);
         setTimeout(() => {
           onLoginSuccess(userProfile);
           onClose();
-          window.location.href = '/master';
         }, 700);
       } else {
         const errMsg = 'Error al conectar con el servicio de autenticación.';
@@ -172,6 +169,7 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         setIsLoading(false);
       }
     }
+
   };
 
   const handleForgotSubmit = async (e) => {
