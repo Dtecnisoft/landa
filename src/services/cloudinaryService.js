@@ -1,19 +1,60 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Cloudinary Service for Web / Landa Application
+// Cloudinary Service for Web / Landa Application (Hardened & Secure)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CLOUDINARY_ACCOUNTS = {
-    primary: {
-        cloudName: 'da49luyee',
-        uploadPreset: 'landa_uploads'
-    },
-    secondary: {
-        cloudName: 'dwstxulxq', // Reemplazar con el Cloud Name de la segunda cuenta
-        uploadPreset: 'landa_uploads' // Reemplazar con el Upload Preset de la segunda cuenta
-    }
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+const FORBIDDEN_EXTENSIONS = /\.(svg|html|htm|js|exe|bat|cmd|sh|php)$/i;
+const ALLOWED_MIME_TYPES = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+    'video/mp4',
+    'video/quicktime',
+    'video/webm',
+    'application/pdf'
+];
+
+/**
+ * Retorna las credenciales de Cloudinary desde las variables de entorno VITE_
+ */
+const getCloudinaryConfig = () => {
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'da49luyee';
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'landa_uploads';
+    return { cloudName, uploadPreset };
 };
 
 const getBaseUrl = (cloudName) => `https://api.cloudinary.com/v1_1/${cloudName}`;
+
+/**
+ * Valida un archivo cliente antes de iniciar la petición HTTP a Cloudinary.
+ * @param {File | Blob} file 
+ */
+export const validateFileForSecurity = (file) => {
+    if (!file) return;
+
+    if (file instanceof File) {
+        // 1. Validar extensiones peligrosas (ej. SVG que puede contener scripts XSS)
+        if (FORBIDDEN_EXTENSIONS.test(file.name)) {
+            throw new Error(`El tipo de archivo (${file.name.split('.').pop()}) no está permitido por razones de seguridad.`);
+        }
+
+        // 2. Validar MIME Types
+        if (file.type && !ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) {
+            throw new Error(`El formato del archivo (${file.type}) no es un tipo permitido (JPEG, PNG, WEBP, MP4, MOV, PDF).`);
+        }
+
+        // 3. Validar tamaño máximo
+        const isVideo = file.type && file.type.startsWith('video');
+        const maxSize = isVideo ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
+        const maxMb = isVideo ? 50 : 10;
+
+        if (file.size > maxSize) {
+            throw new Error(`El archivo excede el tamaño máximo permitido de ${maxMb} MB.`);
+        }
+    }
+};
 
 /**
  * Optimiza una URL de video de Cloudinary para streaming rápido.
@@ -64,13 +105,15 @@ export const isVideoUrl = (url) => {
  * @param {File | Blob | string | {uri: string, name: string, type: string}} file - Local file to upload
  * @param {'auto' | 'image' | 'video' | 'raw'} resourceType - Cloudinary resource type
  * @param {function} onProgress - Optional progress callback (0-100)
- * @param {string} accountKey - 'primary' or 'secondary'
  * @returns {Promise<string>} - Secure public URL of the uploaded file
  */
-export const uploadToCloudinary = async (file, resourceType = 'auto', onProgress = null, accountKey = 'primary') => {
+export const uploadToCloudinary = async (file, resourceType = 'auto', onProgress = null) => {
     if (!file) throw new Error('No se especificó ningún archivo para cargar.');
 
-    const config = CLOUDINARY_ACCOUNTS[accountKey] || CLOUDINARY_ACCOUNTS.primary;
+    // Validar seguridad previa del archivo (tamaño, tipo MIME, extensión)
+    validateFileForSecurity(file);
+
+    const config = getCloudinaryConfig();
     const baseUrl = getBaseUrl(config.cloudName);
 
     let detectedType = resourceType;
@@ -98,7 +141,6 @@ export const uploadToCloudinary = async (file, resourceType = 'auto', onProgress
     if (file instanceof File || file instanceof Blob) {
         formData.append('file', file);
     } else if (typeof file === 'object' && file.uri) {
-        // RN style object fallback
         formData.append('file', file);
     } else {
         formData.append('file', file);

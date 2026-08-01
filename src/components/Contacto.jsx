@@ -116,13 +116,24 @@ function Contacto() {
     email: '',
     telefono: '',
     motivo: 'restaurante', // default selected option
-    mensaje: ''
+    mensaje: '',
+    botField: '' // Honeypot anti-bot hidden field
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSubmitTime, setLastSubmitTime] = useState(0);
   const [submittedTicket, setSubmittedTicket] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
   const [openFaqId, setOpenFaqId] = useState(1);
+
+  // Sanitizador simple de cadenas para prevenir XSS básico en inputs de texto
+  const sanitizeString = (str) => {
+    if (!str) return '';
+    return str
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .trim();
+  };
 
   // Copiar al portapapeles con feedback visual y toast
   const handleCopy = (text, fieldName) => {
@@ -144,20 +155,41 @@ function Contacto() {
   const handleSubmitForm = async (e) => {
     e.preventDefault();
 
-    if (!formData.nombre.trim()) {
+    // 1. Verificación Honeypot anti-spam (si el campo oculto tiene contenido, es un bot)
+    if (formData.botField) {
+      console.warn('[Security Warning] Bot submission blocked via Honeypot.');
+      showToast('Solicitud rechazada.', 'error');
+      return;
+    }
+
+    // 2. Cooldown Rate Limiting (Evitar spam por clics repetidos, mínimo 10 segundos entre envíos)
+    const now = Date.now();
+    if (now - lastSubmitTime < 10000) {
+      const waitSeconds = Math.ceil((10000 - (now - lastSubmitTime)) / 1000);
+      showToast(`Por favor espera ${waitSeconds} segundos antes de enviar otro mensaje.`, 'warning');
+      return;
+    }
+
+    const cleanNombre = sanitizeString(formData.nombre);
+    const cleanEmail = sanitizeString(formData.email);
+    const cleanTelefono = sanitizeString(formData.telefono);
+    const cleanMensaje = sanitizeString(formData.mensaje);
+
+    if (!cleanNombre) {
       showToast('Por favor ingresa tu nombre completo', 'warning');
       return;
     }
-    if (!formData.email.trim() || !formData.email.includes('@')) {
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       showToast('Por favor ingresa un correo electrónico válido', 'warning');
       return;
     }
-    if (!formData.mensaje.trim() || formData.mensaje.trim().length < 10) {
+    if (!cleanMensaje || cleanMensaje.length < 10) {
       showToast('Por favor escribe un mensaje de al menos 10 caracteres', 'warning');
       return;
     }
 
     setIsSubmitting(true);
+    setLastSubmitTime(now);
 
     try {
       // Intentar guardar en Supabase si existe tabla mensajes_contacto
@@ -477,6 +509,17 @@ function Contacto() {
                 ) : (
                   /* Main Form */
                   <form onSubmit={handleSubmitForm} className="contact-form">
+                    {/* Honeypot field (hidden for users, filled by automated bots) */}
+                    <div style={{ display: 'none', opacity: 0, position: 'absolute', left: '-9999px' }} aria-hidden="true">
+                      <input
+                        type="text"
+                        name="botField"
+                        tabIndex="-1"
+                        autoComplete="off"
+                        value={formData.botField || ''}
+                        onChange={handleInputChange}
+                      />
+                    </div>
                     <div className="form-header">
                       <h3>Déjanos tu mensaje</h3>
                       <p>Llena los datos a continuación y nos pondremos en contacto contigo.</p>

@@ -16,31 +16,64 @@ function EmployeeDashboard() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Load employee user session & specialties
+  // Load employee user session, full name & specialties from DB
   useEffect(() => {
+    let localUser = null;
     const savedUser = localStorage.getItem('landa_user');
     if (savedUser) {
       try {
-        const parsed = JSON.parse(savedUser);
-        setUser(parsed);
+        localUser = JSON.parse(savedUser);
+        setUser(localUser);
       } catch (e) {
         console.error(e);
       }
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const u = {
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Empleado',
-          avatar: session.user.user_metadata?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.email)}&background=4556EC&color=fff`,
-          specialties: ['moderation', 'support', 'reports', 'finances'] // Default full access for web preview
-        };
-        setUser(u);
-      }
-    });
+    const loadEmployeeProfile = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || localUser?.id;
+        const userEmail = session?.user?.email || localUser?.email;
 
+        if (userId || userEmail) {
+          const [userRes, empRes] = await Promise.all([
+            userId
+              ? supabase.from('users').select('*').eq('id', userId).maybeSingle()
+              : (userEmail ? supabase.from('users').select('*').eq('email', userEmail).maybeSingle() : Promise.resolve({ data: null })),
+            userId
+              ? supabase.from('empleado').select('*').eq('id', userId).maybeSingle()
+              : (userEmail ? supabase.from('empleado').select('*').eq('email', userEmail).maybeSingle() : Promise.resolve({ data: null }))
+          ]);
+
+          const dbUser = userRes?.data;
+          const dbEmp = empRes?.data;
+
+          const fullNameParts = [
+            dbUser?.name || dbEmp?.name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || localUser?.name,
+            dbUser?.last_name || dbEmp?.last_name || localUser?.last_name
+          ].filter(Boolean).map(s => String(s).trim());
+
+          const fullName = fullNameParts.join(' ').trim();
+
+          const finalName = fullName || dbUser?.name || dbEmp?.name || localUser?.name || userEmail?.split('@')[0] || 'Empleado';
+
+          const updatedUserObj = {
+            ...localUser,
+            id: userId || localUser?.id,
+            email: userEmail || localUser?.email,
+            name: finalName,
+            avatar: dbUser?.avatar || session?.user?.user_metadata?.avatar || localUser?.avatar,
+            specialties: dbUser?.specialties || localUser?.specialties || ['moderation', 'support', 'reports', 'finances']
+          };
+
+          setUser(updatedUserObj);
+        }
+      } catch (err) {
+        console.error('Error fetching employee profile from DB:', err);
+      }
+    };
+
+    loadEmployeeProfile();
     loadMetrics();
   }, []);
 
@@ -63,13 +96,14 @@ function EmployeeDashboard() {
   };
 
   const handleLogout = async () => {
+    const empName = user?.name ? String(user.name).split(' ')[0] : 'Empleado';
     try {
       await supabase.auth.signOut();
     } catch (e) {
       console.error('Error logging out:', e);
     }
     localStorage.removeItem('landa_user');
-    showToast('Sesión de empleado cerrada correctamente. ¡Hasta pronto!', 'info', 'Cierre de Sesión');
+    showToast(`¡Excelente labor hoy, ${empName}! Tu sesión de equipo Landa se ha cerrado de forma segura. 🛡️`, 'info', '🛡️ ¡Hasta luego, Empleado!');
     navigate('/');
   };
 
@@ -119,7 +153,7 @@ function EmployeeDashboard() {
             </span>
             <h1 className="banner-greeting" style={{ fontSize: '2rem', margin: 0, color: '#ffffff' }}>
               {greeting}, <br />
-              <span style={{ fontWeight: 900, color: '#60a5fa' }}>{user?.name?.split(' ')[0] || 'Empleado'}</span>
+              <span style={{ fontWeight: 900, color: '#60a5fa' }}>{user?.name || 'Empleado'}</span>
             </h1>
           </div>
 
@@ -162,7 +196,7 @@ function EmployeeDashboard() {
           <h2 className="master-section-title">Gestión Rápida de Operaciones</h2>
           <div className="quick-actions-grid">
             {(hasModerationPermission || hasSupportPermission) && (
-              <button className="quick-action-card relative" onClick={() => navigate('/master/publicaciones')}>
+              <button className="quick-action-card relative" onClick={() => navigate('/empleado/publicaciones')}>
                 <div className="action-icon-box purple">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -198,7 +232,7 @@ function EmployeeDashboard() {
             )}
 
             {hasFinancesPermission && (
-              <button className="quick-action-card" onClick={() => navigate('/master/finanzas')}>
+              <button className="quick-action-card" onClick={() => navigate('/empleado/finanzas')}>
                 <div className="action-icon-box purple">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="2" y="6" width="20" height="12" rx="2" />

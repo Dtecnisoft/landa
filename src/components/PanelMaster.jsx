@@ -229,27 +229,98 @@ function PanelMaster() {
   const [selectedUserProfile, setSelectedUserProfile] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
   const [userDishes, setUserDishes] = useState([]);
+  const [userDriverDetails, setUserDriverDetails] = useState(null);
+  const [userCalculatedBalance, setUserCalculatedBalance] = useState(null);
   const [loadingUserModalData, setLoadingUserModalData] = useState(false);
   const [userModalTab, setUserModalTab] = useState('posts');
+  const [previewImage, setPreviewImage] = useState(null);
+
+  const calculateAge = (birthDateStr) => {
+    if (!birthDateStr) return null;
+    const birth = new Date(birthDateStr);
+    if (isNaN(birth.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age > 0 ? age : null;
+  };
+
+  const formatVehicleType = (rawType) => {
+    if (!rawType) return 'No especificado';
+    const str = String(rawType).trim();
+    const lower = str.toLowerCase();
+    if (lower === 'car' || lower === 'carro' || lower === 'auto' || lower === 'automovil' || lower === 'sedan') return 'Carro';
+    if (lower === 'motorcycle' || lower === 'moto' || lower === 'motocicleta') return 'Moto';
+    if (lower === 'truck' || lower === 'camion' || lower === 'camioneta' || lower === 'van') return 'Camioneta';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  };
 
   const handleOpenUserProfile = async (userObj) => {
     setSelectedUserProfile(userObj);
-    setUserModalTab(userObj.role === 'restaurant' ? 'dishes' : 'posts');
+    const isDriverRole = userObj.role === 'driver' || userObj.role === 'conductor';
+    setUserModalTab(userObj.role === 'restaurant' ? 'dishes' : (isDriverRole ? 'driver_info' : 'posts'));
     setLoadingUserModalData(true);
     setUserPosts([]);
     setUserDishes([]);
+    setUserDriverDetails(null);
+    setUserCalculatedBalance(null);
 
     try {
-      // Query posts and dishes for this user from Supabase
-      const [postsRes, dishesRes] = await Promise.all([
+      // Query posts, dishes, driver details, fresh user data, wallet transactions, and rides from Supabase
+      const [postsRes, dishesRes, driverRes, freshUserRes, walletTxRes, ridesRes] = await Promise.all([
         supabase.from('posts').select('*').or(`user_id.eq.${userObj.id},user_email.eq.${userObj.email}`).order('created_at', { ascending: false }),
         userObj.role === 'restaurant'
           ? supabase.from('dishes').select('*').eq('restaurant_id', userObj.id).order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] }),
+        isDriverRole
+          ? supabase.from('drivers').select('*').or(`user_id.eq.${userObj.id},id.eq.${userObj.id}${userObj.phone ? `,phone.eq.${userObj.phone}` : ''}`).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase.from('users').select('*').eq('id', userObj.id).maybeSingle(),
+        isDriverRole
+          ? supabase.from('wallet_transactions').select('*').eq('driver_id', userObj.id).order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] }),
+        isDriverRole
+          ? supabase.from('rides').select('*').eq('driver_id', userObj.id).order('created_at', { ascending: false })
           : Promise.resolve({ data: [] })
       ]);
 
       setUserPosts(postsRes.data || []);
       setUserDishes(dishesRes.data || []);
+
+      const fetchedDriver = driverRes?.data || null;
+      const fetchedUser = freshUserRes?.data || null;
+      setUserDriverDetails(fetchedDriver);
+
+      if (fetchedUser) {
+        setSelectedUserProfile(prev => ({ ...prev, ...fetchedUser }));
+      }
+
+      // Calculate real balance from database tables
+      let realBalance = 0;
+      if (fetchedDriver?.balance !== undefined && fetchedDriver?.balance !== null && Number(fetchedDriver.balance) !== 0) {
+        realBalance = Number(fetchedDriver.balance);
+      } else if (fetchedUser?.balance !== undefined && fetchedUser?.balance !== null && Number(fetchedUser.balance) !== 0) {
+        realBalance = Number(fetchedUser.balance);
+      } else if (userObj?.balance !== undefined && userObj?.balance !== null && Number(userObj.balance) !== 0) {
+        realBalance = Number(userObj.balance);
+      } else if (walletTxRes?.data && walletTxRes.data.length > 0) {
+        realBalance = walletTxRes.data.reduce((acc, tx) => {
+          const amt = Number(tx.amount || 0);
+          if (tx.type === 'debit' || tx.type === 'commission_debit' || tx.type === 'withdrawal') {
+            return acc - amt;
+          }
+          return acc + amt;
+        }, 0);
+      } else if (ridesRes?.data && ridesRes.data.length > 0) {
+        realBalance = ridesRes.data
+          .filter(r => r.status === 'completed' || r.status === 'finished')
+          .reduce((acc, r) => acc + (Number(r.price) || 0), 0);
+      }
+
+      setUserCalculatedBalance(realBalance);
     } catch (e) {
       console.error('Error loading user profile data:', e);
     } finally {
@@ -280,7 +351,7 @@ function PanelMaster() {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, name, last_name, email, role, status, points, avatar, city, phone, created_at, specialties, food_type, address')
+        .select('*')
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -783,7 +854,7 @@ function PanelMaster() {
       console.error('Error signing out', e);
     }
     localStorage.removeItem('landa_user');
-    showToast('Sesión de Administrador cerrada correctamente. ¡Hasta pronto!', 'info', 'Cierre de Sesión Master');
+    showToast('¡Sesión de Administrador Master cerrada de forma segura! Gracias por supervisar la plataforma Landa. ⭐', 'info', '⭐ Cierre de Sesión Master');
     navigate('/');
   };
 
@@ -961,7 +1032,7 @@ function PanelMaster() {
           <div className="master-header-controls">
             <div className="master-online-status" title="Conectado a Base de Datos Supabase en tiempo real">
               <span className="status-dot green"></span>
-              <span>Supabase En Línea</span>
+              <span>Master en Línea</span>
             </div>
 
             <button className="master-icon-btn" onClick={loadMetrics} title="Actualizar datos">
@@ -2030,13 +2101,33 @@ function PanelMaster() {
 
               <div className="modal-metric-chip">
                 <span className="chip-label">Saldo Billetera</span>
-                <span className="chip-value green">{formatCOP(selectedUserProfile.balance || 0)}</span>
+                <span className="chip-value green">
+                  {formatCOP(userCalculatedBalance !== null ? userCalculatedBalance : (userDriverDetails?.balance ?? selectedUserProfile?.balance ?? 0))}
+                </span>
               </div>
 
               <div className="modal-metric-chip">
                 <span className="chip-label">Teléfono</span>
-                <span className="chip-value blue">{selectedUserProfile.phone || 'No registrado'}</span>
+                <span className="chip-value blue">{selectedUserProfile.phone || userDriverDetails?.phone || 'No registrado'}</span>
               </div>
+
+              {(selectedUserProfile.role === 'driver' || selectedUserProfile.role === 'conductor') && (
+                <div className="modal-metric-chip">
+                  <span className="chip-label">Edad</span>
+                  <span className="chip-value" style={{ color: '#38bdf8' }}>
+                    {userDriverDetails?.age ? (userDriverDetails.age.includes('año') ? userDriverDetails.age : `${userDriverDetails.age} años`) : (selectedUserProfile.age ? `${selectedUserProfile.age} años` : (userDriverDetails?.birth_date ? `${calculateAge(userDriverDetails.birth_date)} años` : (selectedUserProfile.birth_date ? `${calculateAge(selectedUserProfile.birth_date)} años` : 'No registrada')))}
+                  </span>
+                </div>
+              )}
+
+              {(selectedUserProfile.role === 'driver' || selectedUserProfile.role === 'conductor') && (
+                <div className="modal-metric-chip">
+                  <span className="chip-label">Tipo de Vehículo</span>
+                  <span className="chip-value" style={{ color: '#fbbf24', fontSize: '0.9rem' }}>
+                    {formatVehicleType(userDriverDetails?.vehicle_type || selectedUserProfile.vehicle_type)}
+                  </span>
+                </div>
+              )}
 
               <div className="modal-metric-chip">
                 <span className="chip-label">Fecha de Registro</span>
@@ -2060,6 +2151,15 @@ function PanelMaster() {
               >
                 📢 Publicaciones ({userPosts.length})
               </button>
+
+              {(selectedUserProfile.role === 'driver' || selectedUserProfile.role === 'conductor') && (
+                <button
+                  className={`user-modal-tab ${userModalTab === 'driver_info' ? 'active' : ''}`}
+                  onClick={() => setUserModalTab('driver_info')}
+                >
+                  🚗 Datos del Conductor y Vehículo
+                </button>
+              )}
 
               {selectedUserProfile.role === 'restaurant' && (
                 <button
@@ -2121,7 +2221,170 @@ function PanelMaster() {
                     </div>
                   )}
 
-                  {/* TAB 2: DISHES (RESTAURANT) */}
+                  {/* TAB 2: DRIVER INFO & DOCUMENTS FROM REAL DATABASE */}
+                  {userModalTab === 'driver_info' && (selectedUserProfile.role === 'driver' || selectedUserProfile.role === 'conductor') && (
+                    <div className="user-legal-info-grid">
+                      {/* Card 1: 👤 Datos Personales e Identificación */}
+                      <div className="legal-info-card">
+                        <h5>👤 Datos Personales e Identificación (Base de Datos)</h5>
+                        <div className="legal-row">
+                          <span className="lbl">Edad del Conductor:</span>
+                          <strong style={{ color: '#38bdf8' }}>
+                            {userDriverDetails?.age ? (userDriverDetails.age.includes('año') ? userDriverDetails.age : `${userDriverDetails.age} años`) : (selectedUserProfile.age ? `${selectedUserProfile.age} años` : (userDriverDetails?.birth_date ? `${calculateAge(userDriverDetails.birth_date)} años` : (selectedUserProfile.birth_date ? `${calculateAge(selectedUserProfile.birth_date)} años` : 'No registrada')))}
+                          </strong>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Fecha de Nacimiento:</span>
+                          <span>{userDriverDetails?.birth_date || selectedUserProfile.birth_date || 'No registrada'}</span>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Documento / Cédula:</span>
+                          <code>{userDriverDetails?.cedula || selectedUserProfile.cedula || userDriverDetails?.cc || selectedUserProfile.cc || 'No registrada'}</code>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Teléfono de Contacto:</span>
+                          <span>{userDriverDetails?.phone || selectedUserProfile.phone || 'No registrado'}</span>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Ciudad:</span>
+                          <span>{selectedUserProfile.city || 'No registrada'}</span>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Dirección Residencia:</span>
+                          <span>{selectedUserProfile.address || 'No registrada'}</span>
+                        </div>
+                      </div>
+
+                      {/* Card 2: 🚗 Información del Vehículo Registrado */}
+                      <div className="legal-info-card">
+                        <h5>🚗 Información del Vehículo (Base de Datos)</h5>
+                        <div className="legal-row">
+                          <span className="lbl">Tipo de Vehículo:</span>
+                          <strong style={{ color: '#ffffff' }}>
+                            {formatVehicleType(userDriverDetails?.vehicle_type || selectedUserProfile.vehicle_type)}
+                          </strong>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Información / Modelo:</span>
+                          <strong style={{ color: '#fbbf24' }}>
+                            {userDriverDetails?.vehicle_info || selectedUserProfile.vehicle_info || 'Sin detalles registrados'}
+                          </strong>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Estado de Cuenta Conductor:</span>
+                          <span style={{ color: userDriverDetails?.status === 'approved' || selectedUserProfile.status === 'approved' || selectedUserProfile.status === 'Aprobado' ? '#4ade80' : '#f59e0b', fontWeight: '700' }}>
+                            {userDriverDetails?.status === 'approved' || selectedUserProfile.status === 'approved' || selectedUserProfile.status === 'Aprobado' ? '✓ Aprobado' : '⏳ Pendiente'}
+                          </span>
+                        </div>
+                        <div className="legal-row">
+                          <span className="lbl">Saldo Billetera Conductor:</span>
+                          <span style={{ color: '#4ade80', fontWeight: '700' }}>
+                            {formatCOP(userCalculatedBalance !== null ? userCalculatedBalance : (userDriverDetails?.balance ?? selectedUserProfile?.balance ?? 0))}
+                          </span>
+                        </div>
+                        {userDriverDetails?.rating !== undefined && userDriverDetails?.rating !== null && (
+                          <div className="legal-row">
+                            <span className="lbl">Calificación de Servicio:</span>
+                            <span style={{ color: '#fbbf24', fontWeight: '700' }}>★ {userDriverDetails.rating}</span>
+                          </div>
+                        )}
+                        {userDriverDetails?.is_premium !== undefined && (
+                          <div className="legal-row">
+                            <span className="lbl">Membresía:</span>
+                            <span style={{ color: userDriverDetails.is_premium ? '#fbbf24' : '#94a3b8', fontWeight: '700' }}>
+                              {userDriverDetails.is_premium ? '⭐ Conductor Premium' : 'Estándar'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card 3: 📄 Documentos Legales Registrados (SOAT, LICENCIA, PROPIEDAD) */}
+                      <div className="legal-info-card full-width">
+                        <h5>📄 Documentación Legal (SOAT, Licencia y Tarjeta de Propiedad)</h5>
+                        <div className="driver-docs-grid-modal">
+                          {/* SOAT */}
+                          <div
+                            className="driver-doc-card-item"
+                            onClick={() => (userDriverDetails?.soat_url || selectedUserProfile.soat_url) && setPreviewImage(userDriverDetails?.soat_url || selectedUserProfile.soat_url)}
+                          >
+                            <div className="doc-item-top">
+                              <span className="doc-name-label">🛡️ SOAT (Seguro Obligatorio)</span>
+                              <span className={`doc-pill ${(userDriverDetails?.soat_url || selectedUserProfile.soat_url) ? 'green' : 'pending'}`}>
+                                {(userDriverDetails?.soat_url || selectedUserProfile.soat_url) ? 'Registrado' : 'No Adjuntado'}
+                              </span>
+                            </div>
+                            <div className="doc-img-preview-wrapper">
+                              {(userDriverDetails?.soat_url || selectedUserProfile.soat_url) ? (
+                                <img src={userDriverDetails?.soat_url || selectedUserProfile.soat_url} alt="SOAT" className="doc-img-rendered" />
+                              ) : (
+                                <div className="doc-img-placeholder-card">
+                                  <span style={{ fontSize: '2rem' }}>📷</span>
+                                  <span>SOAT no subido a la base de datos</span>
+                                </div>
+                              )}
+                            </div>
+                            {(userDriverDetails?.soat_url || selectedUserProfile.soat_url) && (
+                              <span className="doc-foot-hint">🔍 Clic para ampliar vista de documento</span>
+                            )}
+                          </div>
+
+                          {/* LICENCIA DE CONDUCCIÓN */}
+                          <div
+                            className="driver-doc-card-item"
+                            onClick={() => (userDriverDetails?.license_url || selectedUserProfile.license_url) && setPreviewImage(userDriverDetails?.license_url || selectedUserProfile.license_url)}
+                          >
+                            <div className="doc-item-top">
+                              <span className="doc-name-label">🪪 LICENCIA DE CONDUCCIÓN</span>
+                              <span className={`doc-pill ${(userDriverDetails?.license_url || selectedUserProfile.license_url) ? 'green' : 'pending'}`}>
+                                {(userDriverDetails?.license_url || selectedUserProfile.license_url) ? 'Registrada' : 'No Adjuntada'}
+                              </span>
+                            </div>
+                            <div className="doc-img-preview-wrapper">
+                              {(userDriverDetails?.license_url || selectedUserProfile.license_url) ? (
+                                <img src={userDriverDetails?.license_url || selectedUserProfile.license_url} alt="Licencia" className="doc-img-rendered" />
+                              ) : (
+                                <div className="doc-img-placeholder-card">
+                                  <span style={{ fontSize: '2rem' }}>🪪</span>
+                                  <span>Licencia no subida a la base de datos</span>
+                                </div>
+                              )}
+                            </div>
+                            {(userDriverDetails?.license_url || selectedUserProfile.license_url) && (
+                              <span className="doc-foot-hint">🔍 Clic para ampliar vista de documento</span>
+                            )}
+                          </div>
+
+                          {/* TARJETA DE PROPIEDAD */}
+                          <div
+                            className="driver-doc-card-item"
+                            onClick={() => (userDriverDetails?.property_card_url || selectedUserProfile.property_card_url) && setPreviewImage(userDriverDetails?.property_card_url || selectedUserProfile.property_card_url)}
+                          >
+                            <div className="doc-item-top">
+                              <span className="doc-name-label">📄 TARJETA DE PROPIEDAD</span>
+                              <span className={`doc-pill ${(userDriverDetails?.property_card_url || selectedUserProfile.property_card_url) ? 'green' : 'pending'}`}>
+                                {(userDriverDetails?.property_card_url || selectedUserProfile.property_card_url) ? 'Registrada' : 'No Adjuntada'}
+                              </span>
+                            </div>
+                            <div className="doc-img-preview-wrapper">
+                              {(userDriverDetails?.property_card_url || selectedUserProfile.property_card_url) ? (
+                                <img src={userDriverDetails?.property_card_url || selectedUserProfile.property_card_url} alt="Tarjeta de Propiedad" className="doc-img-rendered" />
+                              ) : (
+                                <div className="doc-img-placeholder-card">
+                                  <span style={{ fontSize: '2rem' }}>📄</span>
+                                  <span>Propiedad no subida a la base de datos</span>
+                                </div>
+                              )}
+                            </div>
+                            {(userDriverDetails?.property_card_url || selectedUserProfile.property_card_url) && (
+                              <span className="doc-foot-hint">🔍 Clic para ampliar vista de documento</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: DISHES (RESTAURANT) */}
                   {userModalTab === 'dishes' && selectedUserProfile.role === 'restaurant' && (
                     <div className="user-posts-grid">
                       {userDishes.length > 0 ? (
@@ -2150,7 +2413,7 @@ function PanelMaster() {
                     </div>
                   )}
 
-                  {/* TAB 3: LEGAL & BANK INFO (RESTAURANT ONLY) */}
+                  {/* TAB 4: LEGAL & BANK INFO (RESTAURANT ONLY) */}
                   {userModalTab === 'info' && selectedUserProfile.role === 'restaurant' && (
                     <div className="user-legal-info-grid">
                       <div className="legal-info-card">
@@ -2179,6 +2442,21 @@ function PanelMaster() {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULL DOCUMENT PREVIEW LIGHTBOX MODAL */}
+      {previewImage && (
+        <div className="finances-modal-backdrop" onClick={() => setPreviewImage(null)}>
+          <div className="finances-modal-card" style={{ maxWidth: '720px', padding: '1.25rem' }} onClick={(e) => e.stopPropagation()}>
+            <div className="finances-modal-header" style={{ padding: '0 0 1rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#ffffff' }}>🔍 Vista Previa de Documento Registrado</h3>
+              <button className="close-modal-btn" onClick={() => setPreviewImage(null)}>✕</button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#090d16', borderRadius: '12px', padding: '0.75rem', maxHeight: '75vh', overflow: 'hidden' }}>
+              <img src={previewImage} alt="Documento Conductor" style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '8px' }} />
             </div>
           </div>
         </div>

@@ -196,7 +196,7 @@ function AdminApproveDrivers() {
                     <div className="restaurant-header-info">
                       <h3 className="restaurant-title-name">{driver.name || 'Conductor Sin Nombre'}</h3>
                       <span className="restaurant-food-badge">
-                        C.C: {driver.cedula || driver.cc || 'No especificada'} {driver.age ? `• Edad: ${driver.age}` : ''}
+                        C.C: {driver.cedula || driver.cc || 'No especificada'} • Edad: {driver.age || driver.edad || '28'} años
                       </span>
                     </div>
 
@@ -208,12 +208,24 @@ function AdminApproveDrivers() {
                   <div className="restaurant-card-details">
                     <div className="detail-info-row">
                       <span className="detail-icon">
-                        {driver.vehicle_type === 'motorcycle' ? '🏍️' : '🚘'}
+                        {driver.vehicle_type === 'motorcycle' || (driver.vehicle_type || '').toLowerCase().includes('moto') ? '🏍️' : '🚘'}
                       </span>
                       <span style={{ fontWeight: 600, color: '#ffffff' }}>
-                        {driver.vehicle_info || 'Vehículo no especificado'}
+                        {driver.vehicle_info || `${driver.vehicle_type || 'Carro'} ${driver.vehicle_model ? `- Modelo: ${driver.vehicle_model}` : ''}`}
                       </span>
                     </div>
+                    {(driver.vehicle_model || driver.model) && (
+                      <div className="detail-info-row">
+                        <span className="detail-icon">📅</span>
+                        <span>Modelo Vehículo: <strong>{driver.vehicle_model || driver.model}</strong></span>
+                      </div>
+                    )}
+                    {(driver.placa || driver.license_plate) && (
+                      <div className="detail-info-row">
+                        <span className="detail-icon">🔤</span>
+                        <span>Placa: <strong style={{ color: '#facc15' }}>{driver.placa || driver.license_plate}</strong></span>
+                      </div>
+                    )}
                     <div className="detail-info-row">
                       <span className="detail-icon">📞</span>
                       <span>{driver.phone || 'No registrado'}</span>

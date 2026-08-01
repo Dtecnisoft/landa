@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import logo from '../assets/images/logo.png';
 import { useToast } from '../context/ToastContext';
@@ -14,11 +14,28 @@ function formatCurrency(val) {
 
 function AdminFinances() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState('all'); // 'all' | 'Comida' | 'Suscripción' | 'Viaje'
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const isEmployeeRoute = location.pathname.startsWith('/empleado');
+  const isEmployeeRole = currentUser?.role === 'employee';
+  const isEmployeeMode = isEmployeeRoute || (isEmployeeRole && currentUser?.role !== 'admin' && currentUser?.role !== 'master');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('landa_user');
+    if (saved) {
+      try {
+        setCurrentUser(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
 
   const [kpis, setKpis] = useState({
     foodCommission: 0,
@@ -167,13 +184,34 @@ function AdminFinances() {
             <img src={logo} alt="Landa Logo" className="master-logo-img" />
             <div className="master-brand-titles">
               <span className="master-brand-name">LANDA</span>
-              <span className="master-brand-sub">Panel Master • Módulo Financiero</span>
+              <span className="master-brand-sub">
+                {isEmployeeMode ? '🛡️ Panel de Empleado • Módulo Financiero' : '⭐ Panel Master • Módulo Financiero'}
+              </span>
             </div>
           </div>
 
-          <button className="chip-btn active" onClick={() => navigate('/master')}>
-            ← Volver al Panel Master
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span
+              style={{
+                padding: '0.4rem 0.85rem',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                background: isEmployeeMode ? 'rgba(99, 102, 241, 0.18)' : 'rgba(245, 158, 11, 0.18)',
+                border: isEmployeeMode ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                color: isEmployeeMode ? '#818cf8' : '#fbbf24'
+              }}
+            >
+              {isEmployeeMode ? `🛡️ Empleado: ${currentUser?.name || 'Operador'}` : '⭐ Administrador Master'}
+            </span>
+
+            <button
+              className="chip-btn active"
+              onClick={() => navigate(isEmployeeMode ? '/empleado' : '/master')}
+            >
+              {isEmployeeMode ? '← Volver al Panel Empleado' : '← Volver al Panel Master'}
+            </button>
+          </div>
         </div>
       </header>
 

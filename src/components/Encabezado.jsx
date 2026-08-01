@@ -139,16 +139,32 @@ function Encabezado() {
   };
 
   const handleLogout = async () => {
+    const userRole = user?.role || '';
+    const userFirstName = user?.name ? String(user.name).split(' ')[0] : '';
+    const nameSuffix = userFirstName ? `, ${userFirstName}` : '';
+
     try {
       await supabase.auth.signOut();
     } catch (e) {
       console.error('Error signing out', e);
     }
+
     setUser(null);
     localStorage.removeItem('landa_user');
     setIsUserMenuOpen(false);
     closeMenu();
-    showToast('Sesión cerrada correctamente. ¡Hasta pronto!', 'info', 'Cierre de Sesión');
+
+    if (userRole === 'admin' || userRole === 'master') {
+      showToast(`¡Sesión Master cerrada de forma segura${nameSuffix}! Gracias por gestionar Landa. ⭐`, 'info', '⭐ Cierre de Sesión Master');
+    } else if (userRole === 'employee') {
+      showToast(`¡Excelente labor hoy${nameSuffix}! Tu sesión de equipo Landa se ha cerrado de forma segura. 🛡️`, 'info', '🛡️ Cierre de Sesión Empleado');
+    } else if (userRole === 'driver' || userRole === 'conductor') {
+      showToast(`¡Gracias por tu jornada en ruta${nameSuffix}! Tu sesión de conductor se ha cerrado con éxito. 🚗`, 'info', '🚗 ¡Hasta pronto, Conductor!');
+    } else if (userRole === 'restaurant' || userRole === 'restaurante') {
+      showToast(`¡Sesión de aliado comercial cerrada exitosamente${nameSuffix}! Gracias por impulsar la gastronomía con Landa. 🏪`, 'info', '🏪 ¡Hasta pronto, Aliado!');
+    } else {
+      showToast(`¡Has cerrado sesión correctamente${nameSuffix}! Esperamos verte muy pronto para tus próximos pedidos y viajes. 👋`, 'info', '👋 ¡Hasta pronto!');
+    }
   };
 
   const getRoleLabel = (role, isEmployee) => {

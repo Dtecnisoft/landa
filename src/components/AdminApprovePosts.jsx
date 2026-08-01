@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import logo from '../assets/images/logo.png';
 import { useToast } from '../context/ToastContext';
@@ -46,6 +46,7 @@ function formatTimeAgo(dateString) {
 
 function AdminApprovePosts() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
 
   const [posts, setPosts] = useState([]);
@@ -54,6 +55,33 @@ function AdminApprovePosts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
   const [isAutoModerating, setIsAutoModerating] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Determine whether current operator is in Empleado Mode or Master Mode
+  const isEmployeeRoute = location.pathname.startsWith('/empleado');
+  const isEmployeeRole = currentUser?.role === 'employee';
+  const isEmployeeMode = isEmployeeRoute || (isEmployeeRole && currentUser?.role !== 'admin' && currentUser?.role !== 'master');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('landa_user');
+    if (saved) {
+      try {
+        setCurrentUser(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        supabase.from('users').select('*').eq('id', session.user.id).maybeSingle().then(({ data: dbUser }) => {
+          if (dbUser) {
+            setCurrentUser((prev) => ({ ...prev, ...dbUser }));
+          }
+        });
+      }
+    });
+  }, []);
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
@@ -201,22 +229,57 @@ function AdminApprovePosts() {
             <img src={logo} alt="Landa Logo" className="master-logo-img" />
             <div className="master-brand-titles">
               <span className="master-brand-name">LANDA</span>
-              <span className="master-brand-sub">Panel Master • Moderación de Publicaciones</span>
+              <span className="master-brand-sub">
+                {isEmployeeMode ? '🛡️ Panel de Empleado • Moderación de Publicaciones' : '⭐ Panel Master • Moderación Global'}
+              </span>
             </div>
           </div>
 
-          <button className="chip-btn active" onClick={() => navigate('/master')}>
-            ← Volver al Panel Master
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span
+              style={{
+                padding: '0.4rem 0.85rem',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                background: isEmployeeMode ? 'rgba(99, 102, 241, 0.18)' : 'rgba(245, 158, 11, 0.18)',
+                border: isEmployeeMode ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                color: isEmployeeMode ? '#818cf8' : '#fbbf24'
+              }}
+            >
+              {isEmployeeMode ? `🛡️ Empleado: ${currentUser?.name || 'Operador'}` : '⭐ Administrador Master'}
+            </span>
+
+            <button
+              className="chip-btn active"
+              onClick={() => navigate(isEmployeeMode ? '/empleado' : '/master')}
+            >
+              {isEmployeeMode ? '← Volver al Panel Empleado' : '← Volver al Panel Master'}
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="master-container" style={{ maxWidth: '980px' }}>
         {/* BANNER */}
-        <div className="master-hero-banner" style={{ padding: '1.75rem 2rem', background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)' }}>
+        <div
+          className="master-hero-banner"
+          style={{
+            padding: '1.75rem 2rem',
+            background: isEmployeeMode
+              ? 'linear-gradient(135deg, #3730a3 0%, #4f46e5 100%)'
+              : 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)'
+          }}
+        >
           <div>
-            <h1 className="banner-greeting" style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>Moderación de Publicaciones del Feed</h1>
-            <p className="banner-subtext">Revisa las publicaciones de la comunidad, aprueba ofertas y filtra contenido inapropiado.</p>
+            <h1 className="banner-greeting" style={{ fontSize: '1.8rem', marginBottom: '0.25rem' }}>
+              {isEmployeeMode ? '🛡️ Moderación de Publicaciones (Modo Empleado)' : '⭐ Moderación Global del Feed (Modo Master)'}
+            </h1>
+            <p className="banner-subtext">
+              {isEmployeeMode
+                ? 'Panel de operación para equipo Landa. Revisa las publicaciones de la comunidad y aprueba contenido seguro.'
+                : 'Control total de administración sobre las publicaciones, ofertas y moderación general del feed.'}
+            </p>
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>

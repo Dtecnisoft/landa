@@ -21,6 +21,7 @@ import AdminApprovePosts from './components/AdminApprovePosts';
 import AdminFinances from './components/AdminFinances';
 import EmployeeDashboard from './components/EmployeeDashboard';
 import RestaurantDashboard from './components/RestaurantDashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 import { ToastProvider } from './context/ToastContext';
 
 function HomePage() {
@@ -45,14 +46,62 @@ function MainLayout() {
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/master" element={<PanelMaster />} />
-          <Route path="/empleado" element={<EmployeeDashboard />} />
-          <Route path="/restaurante/gestion" element={<RestaurantDashboard />} />
-          <Route path="/master/nuevo-empleado" element={<AdminCreateEmployee />} />
-          <Route path="/master/restaurantes" element={<AdminApproveRestaurants />} />
-          <Route path="/master/conductores" element={<AdminApproveDrivers />} />
-          <Route path="/master/publicaciones" element={<AdminApprovePosts />} />
-          <Route path="/master/finanzas" element={<AdminFinances />} />
+          
+          {/* Rutas administrativas protegidas */}
+          <Route path="/master" element={
+            <ProtectedRoute allowedRoles={['master', 'admin']}>
+              <PanelMaster />
+            </ProtectedRoute>
+          } />
+          <Route path="/master/nuevo-empleado" element={
+            <ProtectedRoute allowedRoles={['master', 'admin']}>
+              <AdminCreateEmployee />
+            </ProtectedRoute>
+          } />
+          <Route path="/master/restaurantes" element={
+            <ProtectedRoute allowedRoles={['master', 'admin']}>
+              <AdminApproveRestaurants />
+            </ProtectedRoute>
+          } />
+          <Route path="/master/conductores" element={
+            <ProtectedRoute allowedRoles={['master', 'admin']}>
+              <AdminApproveDrivers />
+            </ProtectedRoute>
+          } />
+          <Route path="/master/publicaciones" element={
+            <ProtectedRoute allowedRoles={['master', 'admin']}>
+              <AdminApprovePosts />
+            </ProtectedRoute>
+          } />
+          <Route path="/master/finanzas" element={
+            <ProtectedRoute allowedRoles={['master', 'admin']}>
+              <AdminFinances />
+            </ProtectedRoute>
+          } />
+
+          {/* Rutas de empleado protegidas */}
+          <Route path="/empleado" element={
+            <ProtectedRoute allowedRoles={['employee', 'master', 'admin']}>
+              <EmployeeDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/empleado/publicaciones" element={
+            <ProtectedRoute allowedRoles={['employee', 'master', 'admin']}>
+              <AdminApprovePosts />
+            </ProtectedRoute>
+          } />
+          <Route path="/empleado/finanzas" element={
+            <ProtectedRoute allowedRoles={['employee', 'master', 'admin']}>
+              <AdminFinances />
+            </ProtectedRoute>
+          } />
+
+          {/* Ruta de gestión de restaurantes protegida */}
+          <Route path="/restaurante/gestion" element={
+            <ProtectedRoute allowedRoles={['restaurant', 'master', 'admin']}>
+              <RestaurantDashboard />
+            </ProtectedRoute>
+          } />
           <Route path="/quienes-somos" element={<QuienesSomos />} />
           <Route path="/terminos-condiciones" element={<TerminosCondiciones />} />
           <Route path="/politicas-tratamientos-datos" element={<Politicas />} />
