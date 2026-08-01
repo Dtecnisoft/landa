@@ -72,6 +72,13 @@ function Encabezado() {
       localStorage.setItem('landa_user', JSON.stringify(suUser));
     };
 
+    // Detectar si la página cargó mediante el enlace del correo (type=recovery o access_token)
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    if (hash.includes('type=recovery') || hash.includes('access_token') || search.includes('type=recovery')) {
+      setIsAuthOpen(true);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         syncUserSession(session.user);
@@ -79,7 +86,9 @@ function Encabezado() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+      if (_event === 'PASSWORD_RECOVERY') {
+        setIsAuthOpen(true);
+      } else if (session?.user) {
         syncUserSession(session.user);
       } else if (_event === 'SIGNED_OUT') {
         setUser(null);
@@ -91,6 +100,7 @@ function Encabezado() {
       subscription?.unsubscribe();
     };
   }, []);
+
 
   // Handle outside click & escape key to close menus
   useEffect(() => {
