@@ -43,7 +43,6 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     setSuccessMessage('');
 
     const cleanEmail = loginData.email.toLowerCase().trim();
-    const isMasterAdmin = cleanEmail === 'admin@landa.com';
 
     if (!cleanEmail || !loginData.password) {
       const msg = 'Por favor, completa todos los campos.';
@@ -55,43 +54,39 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     setIsLoading(true);
 
     try {
+      // Autenticación estricta con el servicio de Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: loginData.password
       });
 
-      if (error) {
-        if (isMasterAdmin) {
-          const userProfile = { id: 'master-admin-id', email: 'admin@landa.com', name: 'Master', role: 'master' };
-          setSuccessMessage('¡Bienvenido Master! Sesión iniciada.');
-          showToast('¡Bienvenido Master Landa!', 'success', 'Acceso Concedido');
-          setIsLoading(false);
-          setTimeout(() => {
-            onLoginSuccess(userProfile);
-            onClose();
-          }, 700);
-          return;
+      // Si Supabase devuelve error de autenticación, denegar acceso inmediatamente
+      if (error || !data?.user) {
+        let errMsg = 'Credenciales inválidas. Verifica tu correo y contraseña.';
+        if (error?.message?.includes('Email not confirmed')) {
+          errMsg = 'El correo electrónico no ha sido confirmado aún.';
+        } else if (error?.message?.includes('Too many requests')) {
+          errMsg = 'Demasiados intentos fallidos. Intenta más tarde.';
         }
 
-        const translated = translateError(error.message);
-        setErrorMessage(translated);
-        showToast(translated, 'error', 'Error de Inicio de Sesión');
+        setErrorMessage(errMsg);
+        showToast(errMsg, 'error', 'Error de Autenticación');
         setIsLoading(false);
         return;
       }
 
-      let userRole = 'client';
+      // Si la contraseña y correo son válidos en Supabase Auth:
+      const isMasterAdmin = cleanEmail === 'admin@landa.com' || cleanEmail === 'master@landa.com';
+      let userRole = isMasterAdmin ? 'master' : 'client';
       let userName = data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'Usuario';
 
       try {
-        // Query users table for role
         const { data: userRow } = await supabase.from('users').select('role, name').eq('id', data.user.id).single();
         if (userRow) {
           if (userRow.role) userRole = userRow.role;
           if (userRow.name) userName = userRow.name;
         }
 
-        // Also query empleado table by email
         const { data: empRow } = await supabase.from('empleado').select('id, name').eq('email', cleanEmail).single();
         if (empRow) {
           userRole = 'employee';
@@ -112,8 +107,8 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         role: userRole
       };
 
-      // Register employee/admin login event in audit log history
-      if (userRole === 'employee' || userRole === 'admin' || userRole === 'master' || isMasterAdmin) {
+      // Registrar auditoría de accesos
+      if (userRole === 'employee' || userRole === 'admin' || userRole === 'master') {
         try {
           const loginEvent = {
             id: `login-${Date.now()}`,
@@ -134,7 +129,7 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         }
       }
 
-      if (isMasterAdmin || userRole === 'admin' || userRole === 'master') {
+      if (userRole === 'admin' || userRole === 'master') {
         setSuccessMessage('¡Bienvenido Master!');
         showToast('¡Bienvenido Master Landa!', 'success', 'Acceso Master');
       } else if (userRole === 'employee') {
@@ -153,23 +148,11 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
       }, 700);
     } catch (err) {
       console.error('Supabase Auth error:', err);
-      if (isMasterAdmin) {
-        const userProfile = { id: 'master-admin-id', email: 'admin@landa.com', name: 'Master', role: 'master' };
-        setSuccessMessage('¡Bienvenido Master!');
-        showToast('¡Bienvenido Master Landa!', 'success', 'Acceso Master');
-        setIsLoading(false);
-        setTimeout(() => {
-          onLoginSuccess(userProfile);
-          onClose();
-        }, 700);
-      } else {
-        const errMsg = 'Error al conectar con el servicio de autenticación.';
-        setErrorMessage(errMsg);
-        showToast(errMsg, 'error', 'Error de Autenticación');
-        setIsLoading(false);
-      }
+      const errMsg = 'Error al conectar con el servicio de autenticación o credenciales incorrectas.';
+      setErrorMessage(errMsg);
+      showToast(errMsg, 'error', 'Error de Autenticación');
+      setIsLoading(false);
     }
-
   };
 
   const handleForgotSubmit = async (e) => {
