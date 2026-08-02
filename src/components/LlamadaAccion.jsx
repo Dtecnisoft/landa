@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 
 function LlamadaAccion() {
+  return null;
+  /*
   return (
     <section id="cta" className="section section-alt">
       <div className="container">
@@ -57,6 +59,7 @@ function LlamadaAccion() {
       </div>
     </section>
   );
+  */
 }
 
 export default LlamadaAccion;

@@ -11,6 +11,7 @@ import QuienesSomos from './components/QuienesSomos';
 import TerminosCondiciones from './components/TerminosCondiciones';
 import Restaurantes from './components/Restaurantes';
 import Contacto from './components/Contacto';
+import Cobertura from './components/Cobertura';
 import PiePagina from './components/PiePagina';
 import AvisoLegal from './components/AvisoLegal';
 import PanelMaster from './components/PanelMaster';
@@ -46,7 +47,7 @@ function MainLayout() {
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          
+
           {/* Rutas administrativas protegidas */}
           <Route path="/master" element={
             <ProtectedRoute allowedRoles={['master', 'admin']}>
@@ -108,12 +109,12 @@ function MainLayout() {
           <Route path="/politicas-reembolsos" element={<PoliticasReembolsos />} />
           <Route path="/aviso-legal" element={<AvisoLegal />} />
           <Route path="/restaurantes" element={<Restaurantes />} />
-
+          <Route path="/cobertura" element={<Cobertura />} />
           <Route path="/contacto" element={<Contacto />} />
           <Route path="/caracteristicas" element={<Caracteristicas />} />
           <Route path="/sobre" element={<Sobre />} />
           <Route path="/testimonios" element={<Testimonios />} />
-          <Route path="/llamada-accion" element={<LlamadaAccion />} />
+          {/*<Route path="/llamada-accion" element={<LlamadaAccion />} /> */}
           <Route path="*" element={<HomePage />} />
         </Routes>
       </main>

@@ -400,10 +400,8 @@ function Contacto() {
                   <span className="card-label">Sede Principal & Cobertura</span>
                   <p className="contact-text">Carrera 23 No. 75B-00, Cali, Valle del Cauca, Colombia</p>
                   <div className="contact-location-pills">
-                    <span className="loc-pill active">Cali</span>
-                    <span className="loc-pill active">Jamundí</span>
-                    <span className="loc-pill active">Palmira</span>
-                    <span className="loc-pill upcoming">+ Próximamente</span>
+                    <span className="loc-pill active highlight">🇨🇴 Todo Colombia</span>
+
                   </div>
                 </div>
               </article>
