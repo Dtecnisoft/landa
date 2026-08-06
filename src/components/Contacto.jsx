@@ -101,10 +101,18 @@ const Icons = {
       <line x1="22" y1="2" x2="11" y2="13" />
       <polygon points="22 2 15 22 11 13 2 9 22 2" />
     </svg>
+  ),
+  UserX: () => (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="8.5" cy="7" r="4" />
+      <line x1="18" y1="8" x2="23" y2="13" />
+      <line x1="23" y1="8" x2="18" y2="13" />
+    </svg>
   )
 };
 
-function Contacto() {
+function Contacto({ defaultMotivo }) {
   const { showToast } = useToast();
 
   // Tab State
@@ -115,7 +123,7 @@ function Contacto() {
     nombre: '',
     email: '',
     telefono: '',
-    motivo: 'restaurante', // default selected option
+    motivo: defaultMotivo || 'restaurante', // default selected option
     mensaje: '',
     botField: '' // Honeypot anti-bot hidden field
   });
@@ -273,6 +281,12 @@ function Contacto() {
       pregunta: '¿Tienen soporte técnico en vivo si tengo un problema con un pedido?',
       respuesta:
         '¡Sí! Contamos con un canal de WhatsApp directo donde nuestro equipo de operaciones ayuda en tiempo real a clientes, restaurantes y conductores ante cualquier novedad con una entrega.'
+    },
+    {
+      id: 6,
+      pregunta: '¿Cómo solicito la eliminación de mi cuenta y mis datos personales en Landa App?',
+      respuesta:
+        'Para solicitar la eliminación de tu cuenta de Landa App y los datos asociados, puedes seleccionar el motivo "Eliminación de Cuenta / Datos" en el formulario de contacto de esta página o escribirnos directamente a administracion@landapp.com.co indicando tu correo o número de teléfono registrado. Tu solicitud se procesará en un plazo de 48 a 72 horas hábiles.'
     }
   ];
 
@@ -296,6 +310,12 @@ function Contacto() {
       text: 'Hola Landa App, requiero soporte rápido con un pedido en curso.'
     },
     {
+      iconComponent: Icons.UserX,
+      title: 'Eliminar Cuenta y Datos',
+      desc: 'Solicitud de borrado (Google Play)',
+      text: 'Hola Landa App, deseo solicitar la eliminación de mi cuenta y mis datos personales de la plataforma.'
+    },
+    {
       iconComponent: Icons.Rocket,
       title: 'Llevar Landa a mi Ciudad',
       desc: 'Alianzas comerciales e inversionistas',
@@ -307,6 +327,7 @@ function Contacto() {
     { id: 'restaurante', label: 'Aliado Restaurante', icon: Icons.Restaurant, desc: 'Registro o alianza comercial' },
     { id: 'repartidor', label: 'Repartidor / Conductor', icon: Icons.Delivery, desc: 'Trabajar con Landa' },
     { id: 'soporte', label: 'Soporte Técnico', icon: Icons.Support, desc: 'Ayuda con la app' },
+    { id: 'eliminacion', label: 'Eliminación de Cuenta / Datos', icon: Icons.UserX, desc: 'Solicitar borrado de cuenta' },
     { id: 'general', label: 'Información General', icon: Icons.User, desc: 'Dudas y preguntas' }
   ];
 

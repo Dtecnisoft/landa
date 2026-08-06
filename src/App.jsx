@@ -111,6 +111,7 @@ function MainLayout() {
           <Route path="/restaurantes" element={<Restaurantes />} />
           <Route path="/cobertura" element={<Cobertura />} />
           <Route path="/contacto" element={<Contacto />} />
+          <Route path="/eliminacion-cuenta" element={<Contacto defaultMotivo="eliminacion" />} />
           <Route path="/caracteristicas" element={<Caracteristicas />} />
           <Route path="/sobre" element={<Sobre />} />
           <Route path="/testimonios" element={<Testimonios />} />
