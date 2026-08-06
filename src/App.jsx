@@ -106,6 +106,11 @@ function MainLayout() {
           <Route path="/quienes-somos" element={<QuienesSomos />} />
           <Route path="/terminos-condiciones" element={<TerminosCondiciones />} />
           <Route path="/politicas-tratamientos-datos" element={<Politicas />} />
+          <Route path="/politicas-tratamiento-datos" element={<Politicas />} />
+          <Route path="/politica-de-privacidad" element={<Politicas />} />
+          <Route path="/politica-privacidad" element={<Politicas />} />
+          <Route path="/privacy-policy" element={<Politicas />} />
+          <Route path="/politicas-tratamiento-de-datos" element={<Politicas />} />
           <Route path="/politicas-reembolsos" element={<PoliticasReembolsos />} />
           <Route path="/aviso-legal" element={<AvisoLegal />} />
           <Route path="/restaurantes" element={<Restaurantes />} />
