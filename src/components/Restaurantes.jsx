@@ -465,7 +465,7 @@ function Restaurantes() {
 
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.25rem' }}>
             <a
-              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
               target="_blank"
               rel="noopener noreferrer"
               className="chip-btn"
@@ -772,7 +772,7 @@ function Restaurantes() {
 
             {/* MODAL BODY WITH SCROLL */}
             <div className="finances-modal-body" style={{ padding: '1.5rem 1.75rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              
+
               {/* BANNER INFORMATIVO SOLO LECTURA */}
               <div style={{ background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.3)', padding: '0.95rem 1.25rem', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
                 <span style={{ fontSize: '1.5rem', color: '#f97316', flexShrink: 0, display: 'flex' }}>
@@ -888,7 +888,7 @@ function Restaurantes() {
                 Cerrar
               </button>
               <a
-                href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+                href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-action-approve full-width"

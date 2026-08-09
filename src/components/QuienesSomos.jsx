@@ -258,7 +258,7 @@ function QuienesSomos() {
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <a
-              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary"

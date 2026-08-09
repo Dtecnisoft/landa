@@ -245,8 +245,8 @@ function Encabezado() {
     <>
       {/* Backdrop overlay for mobile menu */}
       {isMenuOpen && (
-        <div 
-          className="header-backdrop" 
+        <div
+          className="header-backdrop"
           onClick={closeMenu}
           aria-hidden="true"
         />
@@ -395,7 +395,7 @@ function Encabezado() {
 
             {/* App Download CTA */}
             <a
-              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-download-cta desktop-cta"
@@ -421,9 +421,9 @@ function Encabezado() {
           {/* Mobile Right Action Bar */}
           <div className="mobile-header-actions">
             {user ? (
-              <button 
-                className="mobile-avatar-btn" 
-                onClick={toggleMenu} 
+              <button
+                className="mobile-avatar-btn"
+                onClick={toggleMenu}
                 aria-label="Abrir menú de usuario"
               >
                 <span className="user-avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
@@ -538,7 +538,7 @@ function Encabezado() {
 
           <div className="mobile-drawer-footer">
             <a
-              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-download-cta mobile-cta"

@@ -17,7 +17,7 @@ const features = [
       '✓ Rastreabilidad GPS y asistencia en tiempo real'
     ],
     ctaText: '📲 Pedir Viaje en la App',
-    link: 'https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing',
+    link: 'https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share',
     btnColor: '#4556EC',
   },
   {
@@ -49,7 +49,7 @@ const features = [
       '✓ Mensajería directa segura entre habitantes locales'
     ],
     ctaText: '👥 Conectar con la Comunidad',
-    link: 'https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing',
+    link: 'https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share',
     btnColor: '#4556EC',
   }
 ];
@@ -75,7 +75,7 @@ function Caracteristicas() {
   return (
     <section id="features" className="section" style={{ background: '#060911', padding: '5rem 0' }}>
       <div className="container" style={{ maxWidth: '1180px', margin: '0 auto', padding: '0 1.25rem' }}>
-        
+
         {/* HEADER SECTION */}
         <div className="section-title text-center" style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
           <span style={{ color: '#ea580c', fontWeight: 800, fontSize: '0.86rem', textTransform: 'uppercase', letterSpacing: '1.2px', background: 'rgba(234, 88, 12, 0.12)', padding: '0.35rem 0.9rem', borderRadius: '20px', display: 'inline-block', marginBottom: '0.75rem', border: '1px solid rgba(234, 88, 12, 0.3)' }}>

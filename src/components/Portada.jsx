@@ -67,7 +67,7 @@ function Portada() {
           </p>
           <div className="hero-actions">
             <a
-              href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing"
+              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary"
@@ -97,7 +97,6 @@ function Portada() {
                 </span>
               </div>
             </a>
-            <a href="#" className="btn btn-secondary">Cómo funciona</a>
           </div>
           <div className="hero-metrics">
             <div>

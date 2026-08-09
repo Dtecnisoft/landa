@@ -193,7 +193,7 @@ function PiePagina() {
                 </Link>
               </li>
               <li>
-                <a href="https://drive.google.com/file/d/1lWZQqLHgHFEpl0xMgQK4_seo1pb8Edrd/view?usp=sharing" target="_blank" rel="noopener noreferrer">
+                <a href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share" target="_blank" rel="noopener noreferrer">
                   <FooterIcons.Smartphone />
                   <span>Descargar App Móvil (Android/iOS)</span>
                 </a>
@@ -242,7 +242,7 @@ function PiePagina() {
                 <div className="contact-item-info">
                   <small>Correo Institucional</small>
                   <div className="email-copy-row">
-                    <span>administracion@landapp.co</span>
+                    <span>administracion@landapp.com.co</span>
                     <button className="copy-mini-btn" onClick={handleCopyEmail} title="Copiar correo">
                       <FooterIcons.Copy />
                       <span>{copiedEmail ? '¡Copiado!' : 'Copiar'}</span>
