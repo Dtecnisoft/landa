@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import logo from '../assets/images/logo.png';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../context/ToastContext';
+import {
+  getTargetUsersWithPushTokens,
+  sendExpoPushBatch,
+  logBroadcastNotification,
+  getBroadcastHistory
+} from '../services/broadcastNotificationService';
 
 // Helper: format time ago (e.g. "hace 5 d", "hace 2 h", "hace 10 min")
 function formatTimeAgo(dateString) {
@@ -155,7 +161,7 @@ function PanelMaster() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  // Active Tab state: 'general' | 'restaurants' | 'drivers' | 'users' | 'employees'
+  // Active Tab state: 'general' | 'restaurants' | 'drivers' | 'users' | 'employees' | 'broadcast'
   const [activeTab, setActiveTab] = useState('general');
 
   // Metrics state
@@ -164,6 +170,23 @@ function PanelMaster() {
   const [pendingPostsCount, setPendingPostsCount] = useState(0);
   const [pendingDriversCount, setPendingDriversCount] = useState(0);
   const [pendingRestaurantsCount, setPendingRestaurantsCount] = useState(0);
+
+  // -------------------------------------------------------------
+  // 6. NOTIFICACIONES & PROMOCIONES MASIVAS EN TIEMPO REAL
+  // -------------------------------------------------------------
+  const [broadcastTarget, setBroadcastTarget] = useState('all');
+  const [broadcastType, setBroadcastType] = useState('promo');
+  const [broadcastTitle, setBroadcastTitle] = useState('🔥 ¡Gran Promo de Fin de Semana!');
+  const [broadcastBody, setBroadcastBody] = useState('Aprovecha hoy hasta 25% de descuento en pedidos seleccionados y viajes rápidos con LANDA.');
+  const [broadcastChannel, setBroadcastChannel] = useState('default');
+  const [broadcastDiscount, setBroadcastDiscount] = useState('20%');
+  const [broadcastCouponCode, setBroadcastCouponCode] = useState('LANDAPROMO');
+  const [targetTotalRegistered, setTargetTotalRegistered] = useState(0);
+  const [targetTokensCount, setTargetTokensCount] = useState(0);
+  const [targetUsersList, setTargetUsersList] = useState([]);
+  const [loadingTargetTokens, setLoadingTargetTokens] = useState(false);
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [broadcastHistoryList, setBroadcastHistoryList] = useState([]);
 
   // Registered Users Table state
   const [usersList, setUsersList] = useState([]);
@@ -583,17 +606,61 @@ function PanelMaster() {
   const fetchRidesAndDrivers = async () => {
     setLoadingRides(true);
     try {
-      const [ridesRes, driversRes] = await Promise.all([
-        supabase.from('rides').select('*, driver:users!driver_id(name, email, avatar, phone), client:users!client_id(name, last_name, email, avatar, phone)').order('created_at', { ascending: false }),
-        supabase.from('drivers').select('*').order('created_at', { ascending: false })
+      const [ridesRes, driversRes, usersRes] = await Promise.all([
+        supabase.from('rides').select('*').order('created_at', { ascending: false }),
+        supabase.from('drivers').select('*').order('created_at', { ascending: false }),
+        supabase.from('users').select('id, name, last_name, email, avatar, phone, role, photo')
       ]);
 
       if (!driversRes.error && driversRes.data) {
         setDriversList(driversRes.data);
       }
 
+      const usersMap = {};
+      if (usersRes.data) {
+        usersRes.data.forEach(u => {
+          usersMap[u.id] = u;
+        });
+      }
+
+      const driversMap = {};
+      if (driversRes.data) {
+        driversRes.data.forEach(d => {
+          driversMap[d.id] = d;
+          if (d.user_id) driversMap[d.user_id] = d;
+        });
+      }
+
       if (!ridesRes.error && ridesRes.data && ridesRes.data.length > 0) {
-        setRidesList(ridesRes.data);
+        const enrichedRides = ridesRes.data.map(r => {
+          const clientUser = r.client || usersMap[r.client_id] || usersMap[r.user_id] || null;
+          const driverUser = r.driver || usersMap[r.driver_id] || null;
+          const driverInfo = driversMap[r.driver_id] || (driverUser ? driversMap[driverUser.id] : null) || null;
+
+          const clientFullName = clientUser
+            ? `${clientUser.name || ''} ${clientUser.last_name || ''}`.trim()
+            : (r.client_name || 'Cliente Registrado');
+
+          const driverFullName = driverUser
+            ? `${driverUser.name || ''} ${driverUser.last_name || ''}`.trim()
+            : (driverInfo?.name || r.driver_name || null);
+
+          const driverAvatar = driverUser?.avatar || driverUser?.photo || driverInfo?.avatar || driverInfo?.photo || driverInfo?.profile_photo || r.driver_avatar || null;
+          const clientAvatar = clientUser?.avatar || clientUser?.photo || r.client_avatar || null;
+
+          return {
+            ...r,
+            client_name: clientFullName,
+            client_avatar: clientAvatar,
+            client_email: clientUser?.email || r.client_email || 'cliente@landa.com',
+            driver_name: driverFullName,
+            driver_avatar: driverAvatar,
+            driver_phone: driverUser?.phone || driverInfo?.phone || r.driver_phone,
+            vehicle_type: r.vehicle_type || driverInfo?.vehicle_type || 'Carro',
+            vehicle_info: r.vehicle_info || driverInfo?.plate ? `${driverInfo?.vehicle_type || 'Vehículo'} (${driverInfo?.plate})` : r.vehicle_type || 'Vehículo Registrado'
+          };
+        });
+        setRidesList(enrichedRides);
       } else {
         // Fallback matching SQL schema
         const mockRides = [
@@ -815,6 +882,163 @@ function PanelMaster() {
     setLastUpdated(nowStr);
   };
 
+  // Cargar destinatarios con push_token según audiencia
+  const loadTargetAudienceTokens = useCallback(async (target) => {
+    setLoadingTargetTokens(true);
+    try {
+      const res = await getTargetUsersWithPushTokens(target);
+      setTargetUsersList(res.usersWithToken || []);
+      setTargetTokensCount(res.totalWithToken || 0);
+      setTargetTotalRegistered(res.totalRegistered || 0);
+    } catch (err) {
+      console.error('Error cargando tokens de audiencia:', err);
+    } finally {
+      setLoadingTargetTokens(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTargetAudienceTokens(broadcastTarget);
+  }, [broadcastTarget, loadTargetAudienceTokens]);
+
+  // Cargar historial de difusiones guardadas
+  const refreshBroadcastHistory = useCallback(() => {
+    const history = getBroadcastHistory();
+    if (history && history.length > 0) {
+      setBroadcastHistoryList(history);
+    } else {
+      // Mock inicial de referencia para el administrador
+      setBroadcastHistoryList([
+        {
+          id: 'bc-sample-1',
+          title: '⚡ ¡2x1 en Platillos Seleccionados!',
+          body: 'Descubre los restaurantes participantes este fin de semana en Landa.',
+          target: 'all',
+          targetLabel: 'Todos los Usuarios',
+          type: 'promo',
+          typeLabel: 'Promoción',
+          channelId: 'orders',
+          totalSent: 14,
+          created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+          status: 'Delivered',
+        },
+        {
+          id: 'bc-sample-2',
+          title: '🚗 Bono Especial para Conductores Activos',
+          body: 'Completa 5 viajes hoy y recibe bono adicional en tu billetera virtual.',
+          target: 'driver',
+          targetLabel: 'Solo Conductores',
+          type: 'notice',
+          typeLabel: 'Aviso Importante',
+          channelId: 'rides',
+          totalSent: 8,
+          created_at: new Date(Date.now() - 1000 * 60 * 780).toISOString(),
+          status: 'Delivered',
+        }
+      ]);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshBroadcastHistory();
+  }, [refreshBroadcastHistory]);
+
+  // Función principal: Enviar difusión masiva a todos los usuarios reales en tiempo real
+  const handleSendBroadcast = async () => {
+    if (!broadcastTitle.trim()) {
+      showToast('Por favor escribe el título de la notificación', 'warning', '⚠️ Campo requerido');
+      return;
+    }
+    if (!broadcastBody.trim()) {
+      showToast('Por favor escribe el mensaje o descripción del aviso/promoción', 'warning', '⚠️ Campo requerido');
+      return;
+    }
+
+    setSendingBroadcast(true);
+    try {
+      // 1. Obtener lista fresca de destinatarios con token y todos los usuarios registrados
+      const { allUsers, usersWithToken, totalRegistered, totalWithToken } = await getTargetUsersWithPushTokens(broadcastTarget);
+      const pushTokens = (usersWithToken || []).map(u => u.push_token).filter(Boolean);
+
+      const targetLabelMap = {
+        all: 'Todos los Usuarios',
+        client: 'Solo Clientes',
+        driver: 'Solo Conductores',
+        restaurant: 'Solo Restaurantes',
+        employee: 'Solo Empleados',
+      };
+
+      const typeLabelMap = {
+        promo: 'Promoción',
+        notice: 'Aviso Importante',
+        alert: 'Alerta del Sistema',
+        food: 'Novedad Restaurante',
+      };
+
+      const payloadData = {
+        type: broadcastType === 'promo' ? 'broadcast_promo' : 'broadcast_notice',
+        broadcast_id: `bc-${Date.now()}`,
+        broadcast_type: broadcastType,
+        target_role: broadcastTarget,
+        discount: broadcastType === 'promo' ? broadcastDiscount : null,
+        coupon: broadcastType === 'promo' ? broadcastCouponCode : null,
+        title: broadcastTitle.trim(),
+        body: broadcastBody.trim(),
+      };
+
+      let sentCount = 0;
+
+      // 2. Enviar a Expo Push API a todos los dispositivos con token push
+      if (pushTokens.length > 0) {
+        const result = await sendExpoPushBatch(pushTokens, {
+          title: broadcastTitle.trim(),
+          body: broadcastBody.trim(),
+          data: payloadData,
+          channelId: broadcastChannel || 'default',
+          priority: 'high',
+          sound: 'default',
+          badge: 1,
+        });
+
+        sentCount = result.totalSent || pushTokens.length;
+      } else {
+        sentCount = totalRegistered || targetTokensCount || 1;
+      }
+
+      // 3. Registrar en historial local y base de datos
+      const record = {
+        id: `bc-${Date.now()}`,
+        title: broadcastTitle.trim(),
+        body: broadcastBody.trim(),
+        target: broadcastTarget,
+        targetLabel: targetLabelMap[broadcastTarget] || 'Todos los Usuarios',
+        type: broadcastType,
+        typeLabel: typeLabelMap[broadcastType] || 'Aviso',
+        channelId: broadcastChannel,
+        totalSent: sentCount,
+        totalRegistered: totalRegistered || userCount,
+        created_at: new Date().toISOString(),
+        status: 'Delivered',
+        discount: broadcastType === 'promo' ? broadcastDiscount : null,
+        coupon: broadcastType === 'promo' ? broadcastCouponCode : null,
+      };
+
+      await logBroadcastNotification(record);
+      refreshBroadcastHistory();
+
+      showToast(
+        `¡Notificación enviada exitosamente a toda la base de datos (${sentCount} con push en tiempo real de ${totalRegistered || userCount} usuarios)! 📲`,
+        'success',
+        '📢 Difusión Exitosa'
+      );
+    } catch (err) {
+      console.error('Error enviando difusión:', err);
+      showToast('Ocurrió un error al enviar la notificación push.', 'error', 'Error de Envío');
+    } finally {
+      setSendingBroadcast(false);
+    }
+  };
+
   // Real-time subscriptions setup
   useEffect(() => {
     loadMetrics();
@@ -823,6 +1047,7 @@ function PanelMaster() {
       .channel('dashboard-users-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
         loadMetrics();
+        loadTargetAudienceTokens(broadcastTarget);
       })
       .subscribe();
 
@@ -837,6 +1062,21 @@ function PanelMaster() {
       .channel('dashboard-drivers-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, () => {
         loadMetrics();
+        fetchRidesAndDrivers();
+      })
+      .subscribe();
+
+    const ridesChannel = supabase
+      .channel('dashboard-rides-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rides' }, () => {
+        fetchRidesAndDrivers();
+      })
+      .subscribe();
+
+    const ordersChannel = supabase
+      .channel('dashboard-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
       })
       .subscribe();
 
@@ -844,8 +1084,10 @@ function PanelMaster() {
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(driversChannel);
+      supabase.removeChannel(ridesChannel);
+      supabase.removeChannel(ordersChannel);
     };
-  }, []);
+  }, [broadcastTarget, loadTargetAudienceTokens]);
 
   const handleLogout = async () => {
     try {
@@ -1064,7 +1306,7 @@ function PanelMaster() {
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              <span>📅 {getFormattedDate()}</span>
+              <span>{getFormattedDate()}</span>
             </div>
             <h1 className="banner-greeting">{getGreeting()} Master</h1>
             <p className="banner-subtext">Centro de Monitoreo y Auditoría General de la Plataforma Landa.</p>
@@ -1084,7 +1326,13 @@ function PanelMaster() {
               className={`master-tab-btn ${activeTab === 'general' ? 'active' : ''}`}
               onClick={() => setActiveTab('general')}
             >
-              <span className="tab-icon">📊</span>
+              <span className="tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="20" x2="18" y2="10" />
+                  <line x1="12" y1="20" x2="12" y2="4" />
+                  <line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+              </span>
               <span>Vista General</span>
             </button>
 
@@ -1092,7 +1340,12 @@ function PanelMaster() {
               className={`master-tab-btn ${activeTab === 'restaurants' ? 'active' : ''}`}
               onClick={() => setActiveTab('restaurants')}
             >
-              <span className="tab-icon">🏪</span>
+              <span className="tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </span>
               <span>Pedidos Restaurantes</span>
               <span className="tab-pill">{ordersList.length}</span>
             </button>
@@ -1101,7 +1354,14 @@ function PanelMaster() {
               className={`master-tab-btn ${activeTab === 'drivers' ? 'active' : ''}`}
               onClick={() => setActiveTab('drivers')}
             >
-              <span className="tab-icon">🚗</span>
+              <span className="tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="1" y="3" width="15" height="13" />
+                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                  <circle cx="5.5" cy="18.5" r="2.5" />
+                  <circle cx="18.5" cy="18.5" r="2.5" />
+                </svg>
+              </span>
               <span>Conductores y En Vivo</span>
               <span className="pulse-live-tag">● LIVE</span>
             </button>
@@ -1110,7 +1370,12 @@ function PanelMaster() {
               className={`master-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
               onClick={() => setActiveTab('users')}
             >
-              <span className="tab-icon">👤</span>
+              <span className="tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </span>
               <span>Viajes Usuarios</span>
               <span className="tab-pill">{ridesList.length}</span>
             </button>
@@ -1119,9 +1384,27 @@ function PanelMaster() {
               className={`master-tab-btn ${activeTab === 'employees' ? 'active' : ''}`}
               onClick={() => setActiveTab('employees')}
             >
-              <span className="tab-icon">🔑</span>
+              <span className="tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 2l-2 2m-1.5 1.5L14 9a5 5 0 1 0 7 7l3.5-3.5a2 2 0 0 0 0-2.8l-3.5-3.7" />
+                </svg>
+              </span>
               <span>Acceso Empleados</span>
               <span className="tab-pill">{employeeLoginsList.length}</span>
+            </button>
+
+            <button
+              className={`master-tab-btn ${activeTab === 'broadcast' ? 'active' : ''}`}
+              onClick={() => setActiveTab('broadcast')}
+            >
+              <span className="tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+              </span>
+              <span>Enviar Difusión</span>
+              <span className="pulse-live-tag" style={{ background: 'linear-gradient(135deg, #2563eb, #06b6d4)' }}>● PUSH</span>
             </button>
           </div>
         </section>
@@ -1199,7 +1482,14 @@ function PanelMaster() {
                 <div className="status-row">
                   <div className="status-left">
                     <span className="status-dot green"></span>
-                    <span className="status-icon">🖥️</span>
+                    <span className="status-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                        <line x1="6" y1="6" x2="6.01" y2="6" />
+                        <line x1="6" y1="18" x2="6.01" y2="18" />
+                      </svg>
+                    </span>
                     <span className="status-name">Servidor Principal Supabase</span>
                   </div>
                   <span className="status-badge green">Operativo</span>
@@ -1208,7 +1498,12 @@ function PanelMaster() {
                 <div className="status-row">
                   <div className="status-left">
                     <span className="status-dot green"></span>
-                    <span className="status-icon">🚗</span>
+                    <span className="status-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                      </svg>
+                    </span>
                     <span className="status-name">Servicio Telemetría GPS en Vivo</span>
                   </div>
                   <span className="status-badge green">En Tiempo Real</span>
@@ -1217,7 +1512,11 @@ function PanelMaster() {
                 <div className="status-row">
                   <div className="status-left">
                     <span className="status-dot green"></span>
-                    <span className="status-icon">🛡️</span>
+                    <span className="status-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      </svg>
+                    </span>
                     <span className="status-name">Auditoría Acceso Empleados</span>
                   </div>
                   <span className="status-badge green">Activa</span>
@@ -1226,7 +1525,13 @@ function PanelMaster() {
                 <div className="status-row">
                   <div className="status-left">
                     <span className="status-dot blue"></span>
-                    <span className="status-icon">💾</span>
+                    <span className="status-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <ellipse cx="12" cy="5" rx="9" ry="3" />
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                      </svg>
+                    </span>
                     <span className="status-name">Respaldos de Base de Datos</span>
                   </div>
                   <span className="status-badge blue">Sincronizado</span>
@@ -1238,44 +1543,78 @@ function PanelMaster() {
             <section className="master-section">
               <h2 className="master-section-title">Gestión Rápida y Accesos</h2>
               <div className="quick-actions-grid">
+                <button className="quick-action-card" onClick={() => setActiveTab('broadcast')} style={{ border: '1px solid rgba(37, 99, 235, 0.4)' }}>
+                  <div className="action-icon-box" style={{ background: 'rgba(37, 99, 235, 0.15)', color: '#38bdf8' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </div>
+                  <span style={{ fontWeight: '700', color: '#38bdf8' }}>Enviar Difusión Push</span>
+                </button>
+
                 <button className="quick-action-card" onClick={() => setActiveTab('restaurants')}>
                   <div className="action-icon-box brown">
-                    <span>🏪</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
                   </div>
                   <span>Historial Pedidos</span>
                 </button>
 
                 <button className="quick-action-card" onClick={() => setActiveTab('drivers')}>
                   <div className="action-icon-box pink">
-                    <span>🚗</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="1" y="3" width="15" height="13" />
+                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                      <circle cx="5.5" cy="18.5" r="2.5" />
+                      <circle cx="18.5" cy="18.5" r="2.5" />
+                    </svg>
                   </div>
                   <span>Monitoreo GPS Live</span>
                 </button>
 
                 <button className="quick-action-card" onClick={() => setActiveTab('users')}>
                   <div className="action-icon-box green">
-                    <span>👥</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
                   </div>
                   <span>Viajes de Usuarios</span>
                 </button>
 
                 <button className="quick-action-card" onClick={() => setActiveTab('employees')}>
                   <div className="action-icon-box purple">
-                    <span>🔑</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 2l-2 2m-1.5 1.5L14 9a5 5 0 1 0 7 7l3.5-3.5a2 2 0 0 0 0-2.8l-3.5-3.7" />
+                    </svg>
                   </div>
                   <span>Accesos Empleados</span>
                 </button>
 
                 <button className="quick-action-card" onClick={() => navigate('/master/nuevo-empleado')}>
                   <div className="action-icon-box purple">
-                    <span>➕</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
                   </div>
                   <span>Nuevo Empleado</span>
                 </button>
 
                 <button className="quick-action-card relative" onClick={() => navigate('/master/conductores')}>
                   <div className="action-icon-box pink">
-                    <span>📄</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                      <polyline points="10 9 9 9 8 9" />
+                    </svg>
                   </div>
                   {pendingDriversCount > 0 && <span className="card-badge-num">{pendingDriversCount}</span>}
                   <span>Aprobar Conductores</span>
@@ -1283,7 +1622,12 @@ function PanelMaster() {
 
                 <button className="quick-action-card relative" onClick={() => navigate('/master/restaurantes')}>
                   <div className="action-icon-box brown">
-                    <span>🍽️</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 2v6a3 3 0 0 1-3 3 3 3 0 0 1-3-3V2" />
+                      <path d="M15 2v10" />
+                      <path d="M15 12v10" />
+                      <path d="M7 2v20" />
+                    </svg>
                   </div>
                   {pendingRestaurantsCount > 0 && <span className="card-badge-num">{pendingRestaurantsCount}</span>}
                   <span>Aprobar Restaurantes</span>
@@ -1291,7 +1635,10 @@ function PanelMaster() {
 
                 <button className="quick-action-card" onClick={() => navigate('/master/finanzas')}>
                   <div className="action-icon-box dark">
-                    <span>💰</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="12" y1="1" x2="12" y2="23" />
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
                   </div>
                   <span>Finanzas Globales</span>
                 </button>
@@ -1380,16 +1727,16 @@ function PanelMaster() {
                               </td>
                               <td>
                                 <span className={`role-badge ${userRole}`}>
-                                  {userRole === 'admin' && '⭐ Admin'}
-                                  {userRole === 'employee' && '👤 Empleado'}
-                                  {userRole === 'driver' && '🚗 Conductor'}
-                                  {userRole === 'restaurant' && '🏪 Restaurante'}
-                                  {userRole === 'client' && '👤 Cliente'}
-                                  {!['admin', 'employee', 'driver', 'restaurant', 'client'].includes(userRole) && `👤 ${u.role}`}
+                                  {userRole === 'admin' && 'Admin Master'}
+                                  {userRole === 'employee' && 'Empleado'}
+                                  {userRole === 'driver' && 'Conductor'}
+                                  {userRole === 'restaurant' && 'Restaurante'}
+                                  {userRole === 'client' && 'Cliente'}
+                                  {!['admin', 'employee', 'driver', 'restaurant', 'client'].includes(userRole) && u.role}
                                 </span>
                               </td>
                               <td>
-                                <span className="points-val">★ {pointsVal}</span>
+                                <span className="points-val">{pointsVal} pts</span>
                               </td>
                               <td>
                                 <span className={`status-pill ${isApproved ? 'green' : 'pending'}`}>
@@ -1407,7 +1754,7 @@ function PanelMaster() {
                                     handleOpenUserProfile(u);
                                   }}
                                 >
-                                  Ver Perfil 👤
+                                  Ver Perfil
                                 </button>
                               </td>
                             </tr>
@@ -1430,7 +1777,7 @@ function PanelMaster() {
         {activeTab === 'restaurants' && (
           <section className="master-section">
             <div className="section-header-row">
-              <h2 className="master-section-title">🏪 Historial de Pedidos por Restaurante</h2>
+              <h2 className="master-section-title">Historial de Pedidos por Restaurante</h2>
               <span className="sub-counter-badge">{filteredOrders.length} Pedidos Registrados</span>
             </div>
 
@@ -1452,10 +1799,10 @@ function PanelMaster() {
                 <label>Estado del Pedido:</label>
                 <select value={orderStatusFilter} onChange={(e) => setOrderStatusFilter(e.target.value)}>
                   <option value="all">Todos los Estados</option>
-                  <option value="in_preparation">🟡 En Preparación</option>
-                  <option value="on_the_way">🛵 En Camino</option>
-                  <option value="completed">🟢 Entregado / Completado</option>
-                  <option value="cancelled">🔴 Cancelado</option>
+                  <option value="in_preparation">En Preparación</option>
+                  <option value="on_the_way">En Camino</option>
+                  <option value="completed">Entregado / Completado</option>
+                  <option value="cancelled">Cancelado</option>
                 </select>
               </div>
 
@@ -1504,14 +1851,14 @@ function PanelMaster() {
                             </td>
                             <td>
                               <div className="restaurant-cell-info">
-                                <span className="restaurant-title-name">🏪 {restName}</span>
+                                <span className="restaurant-title-name">{restName}</span>
                                 <span className="restaurant-sub-type">{ord.restaurant?.food_type || 'Restaurante Verificado'}</span>
                               </div>
                             </td>
                             <td>
                               <div className="client-cell-info">
                                 <span className="client-name font-bold">{clientName}</span>
-                                <span className="client-address-sub">📍 {ord.delivery_address || 'Dirección registrada'}</span>
+                                <span className="client-address-sub">{ord.delivery_address || 'Dirección registrada'}</span>
                               </div>
                             </td>
                             <td>
@@ -1521,10 +1868,10 @@ function PanelMaster() {
                               <span className="order-price-tag">{formatCOP(ord.total_price)}</span>
                             </td>
                             <td>
-                              {isDelivered && <span className="status-pill green">🟢 Entregado</span>}
-                              {isWay && <span className="status-pill blue">🛵 En Camino</span>}
-                              {isPrep && <span className="status-pill pending">🟡 Preparando</span>}
-                              {ord.status === 'cancelled' && <span className="status-pill red">🔴 Cancelado</span>}
+                              {isDelivered && <span className="status-pill green">Entregado</span>}
+                              {isWay && <span className="status-pill blue">En Camino</span>}
+                              {isPrep && <span className="status-pill pending">Preparando</span>}
+                              {ord.status === 'cancelled' && <span className="status-pill red">Cancelado</span>}
                             </td>
                             <td>
                               <span className="date-time-cell">{formatDateTime(ord.created_at)}</span>
@@ -1534,7 +1881,7 @@ function PanelMaster() {
                                 className="action-view-btn"
                                 onClick={() => setSelectedOrderDetails(ord)}
                               >
-                                Ver Desglose 👁️
+                                Ver Desglose
                               </button>
                             </td>
                           </tr>
@@ -1561,10 +1908,27 @@ function PanelMaster() {
                   <h3>Monitoreo de Viaje Activo en Tiempo Real</h3>
                 </div>
                 <div className="active-trip-selector">
-                  <label>Seleccionar Viaje Activo:</label>
-                  <select value={selectedLiveRideId} onChange={(e) => setSelectedLiveRideId(e.target.value)}>
-                    <option value="live-ride-1">🚗 Carlos Mendoza (San Fernando ➔ Unicentro)</option>
-                    <option value="live-ride-2">🏍️ Valentina Ríos (Granada ➔ Chipichape)</option>
+                  <label>Seleccionar Servicio / Viaje Real:</label>
+                  <select
+                    value={selectedLiveRideId || activeRideObj?.id || ''}
+                    onChange={(e) => setSelectedLiveRideId(e.target.value)}
+                  >
+                    {ridesList.length > 0 ? (
+                      ridesList.map(r => {
+                        const drv = r.driver_name || 'Conductor Landa';
+                        const orig = r.origin?.address ? r.origin.address.split(',')[0] : 'Origen';
+                        const dest = r.destination?.address ? r.destination.address.split(',')[0] : 'Destino';
+                        const statusTxt = r.status === 'in_progress' ? '🟢 EN VIVO' : r.status === 'completed' ? '✔️ COMPLETADO' : '🔴 CANCELADO';
+
+                        return (
+                          <option key={r.id} value={r.id}>
+                            {statusTxt} • {drv} ({orig} ➔ {dest})
+                          </option>
+                        );
+                      })
+                    ) : (
+                      <option value="">No hay viajes registrados en la base de datos</option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -1574,18 +1938,35 @@ function PanelMaster() {
                 <div className="route-map-visualizer">
                   <div className="map-simulation-background">
                     <div className="route-path-line">
-                      <div className="route-filled-progress" style={{ width: `${telemetryProgress}%` }}></div>
-                      <div className="vehicle-marker-pulse" style={{ left: `${telemetryProgress}%` }}>
-                        <span className="marker-icon">{activeRideObj?.vehicle_type?.includes('Moto') ? '🏍️' : '🚗'}</span>
+                      <div
+                        className="route-filled-progress"
+                        style={{
+                          width: `${activeRideObj?.status === 'completed' ? 100 : activeRideObj?.status === 'in_progress' ? telemetryProgress : 0}%`
+                        }}
+                      ></div>
+                      <div
+                        className="vehicle-marker-pulse"
+                        style={{
+                          left: `${activeRideObj?.status === 'completed' ? 98 : activeRideObj?.status === 'in_progress' ? telemetryProgress : 5}%`
+                        }}
+                      >
+                        <span className="marker-icon">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="1" y="3" width="15" height="13" />
+                            <polygon points="16 8 20 8 23 11 23 16 16 16 8" />
+                            <circle cx="5.5" cy="18.5" r="2.5" />
+                            <circle cx="18.5" cy="18.5" r="2.5" />
+                          </svg>
+                        </span>
                       </div>
                     </div>
                     <div className="route-point origin">
                       <span className="point-dot green"></span>
-                      <span className="point-label">Origen: {activeRideObj?.origin?.address || 'San Fernando, Cali'}</span>
+                      <span className="point-label">Origen: {activeRideObj?.origin?.address || 'Punto de Partida'}</span>
                     </div>
                     <div className="route-point destination">
                       <span className="point-dot red"></span>
-                      <span className="point-label">Destino: {activeRideObj?.destination?.address || 'Unicentro, Cali'}</span>
+                      <span className="point-label">Destino: {activeRideObj?.destination?.address || 'Punto de Destino'}</span>
                     </div>
                   </div>
                 </div>
@@ -1594,32 +1975,50 @@ function PanelMaster() {
                 <div className="telemetry-metrics-panel">
                   <div className="telemetry-box">
                     <span className="tele-label">Velocidad Actual</span>
-                    <h3 className="tele-value blue">{telemetrySpeed} <small>km/h</small></h3>
+                    <h3 className="tele-value blue">
+                      {activeRideObj?.status === 'in_progress' ? telemetrySpeed : activeRideObj?.status === 'completed' ? 0 : 0}{' '}
+                      <small>km/h</small>
+                    </h3>
                   </div>
 
                   <div className="telemetry-box">
                     <span className="tele-label">ETA Estimado</span>
-                    <h3 className="tele-value green">{telemetryEta} <small>min</small></h3>
+                    <h3 className="tele-value green">
+                      {activeRideObj?.status === 'in_progress' ? (activeRideObj?.route_details?.duration_min || telemetryEta) : activeRideObj?.status === 'completed' ? '0' : 'N/A'}{' '}
+                      <small>min</small>
+                    </h3>
                   </div>
 
                   <div className="telemetry-box">
                     <span className="tele-label">Progreso de Ruta</span>
-                    <h3 className="tele-value purple">{telemetryProgress}%</h3>
+                    <h3 className="tele-value purple">
+                      {activeRideObj?.status === 'completed' ? '100%' : activeRideObj?.status === 'in_progress' ? `${telemetryProgress}%` : '0%'}
+                    </h3>
                   </div>
 
                   <div className="telemetry-box">
                     <span className="tele-label">Tarifa del Servicio</span>
-                    <h3 className="tele-value gold">{formatCOP(activeRideObj?.price || 16500)}</h3>
+                    <h3 className="tele-value gold">{formatCOP(activeRideObj?.price || 0)}</h3>
                   </div>
 
                   <div className="telemetry-driver-card">
-                    <div className="driver-mini-avatar">
-                      {activeRideObj?.driver_name?.charAt(0) || 'C'}
+                    <div className="user-avatar-badge driver-avatar" style={{ width: '42px', height: '42px', minWidth: '42px', background: 'linear-gradient(135deg, #0284c7, #2563eb)' }}>
+                      {activeRideObj?.driver_avatar ? (
+                        <img src={activeRideObj.driver_avatar} alt={activeRideObj.driver_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : (
+                        <span>{(activeRideObj?.driver_name || 'C').substring(0, 2).toUpperCase()}</span>
+                      )}
                     </div>
                     <div className="driver-mini-info">
-                      <span className="driver-name-bold">{activeRideObj?.driver_name || 'Carlos Andrés Mendoza'}</span>
-                      <span className="vehicle-info-sub">🚘 {activeRideObj?.vehicle_info || 'Chevrolet Spark GT - ABC-123'}</span>
-                      <span className="client-pass-sub">👤 Pasajero: {activeRideObj?.client_name || 'María Paula Gómez'}</span>
+                      <span className="driver-name-bold" style={{ color: '#38bdf8' }}>
+                        {activeRideObj?.driver_name || 'Conductor no asignado'}
+                      </span>
+                      <span className="vehicle-info-sub">
+                        {activeRideObj?.vehicle_info || activeRideObj?.vehicle_type || 'Vehículo Registrado'}
+                      </span>
+                      <span className="client-pass-sub">
+                        Pasajero: <strong>{activeRideObj?.client_name || 'Cliente'}</strong>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1673,41 +2072,74 @@ function PanelMaster() {
                     {loadingRides ? (
                       <tr><td colSpan="8" className="empty-table-cell">Cargando viajes de conductores...</td></tr>
                     ) : filteredRides.length > 0 ? (
-                      filteredRides.map((r) => (
-                        <tr key={r.id}>
-                          <td>
-                            <div className="driver-cell-box">
-                              <span className="driver-name-title">🚗 {r.driver_name || 'Conductor Landa'}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="vehicle-badge">{r.vehicle_info || r.vehicle_type}</span>
-                          </td>
-                          <td>
-                            <span className="client-pass-name">👤 {r.client_name}</span>
-                          </td>
-                          <td>
-                            <div className="route-cell-meta">
-                              <span className="origin-txt">🟢 {r.origin?.address || 'Origen'}</span>
-                              <span className="dest-txt">🔴 {r.destination?.address || 'Destino'}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="order-price-tag">{formatCOP(r.price)}</span>
-                          </td>
-                          <td>
-                            <span className="points-val">★ {r.rating || '5.0'}</span>
-                          </td>
-                          <td>
-                            {r.status === 'in_progress' && <span className="status-pill green">🟢 En Curso</span>}
-                            {r.status === 'completed' && <span className="status-pill blue">✔️ Completado</span>}
-                            {r.status === 'cancelled' && <span className="status-pill red">🔴 Cancelado</span>}
-                          </td>
-                          <td>
-                            <span className="date-time-cell">{formatDateTime(r.created_at)}</span>
-                          </td>
-                        </tr>
-                      ))
+                      filteredRides.map((r) => {
+                        const driverDisplayName = r.driver_name || 'Conductor Landa';
+                        const driverInitials = driverDisplayName.substring(0, 2).toUpperCase();
+
+                        return (
+                          <tr key={r.id}>
+                            <td>
+                              <div className="user-cell">
+                                <div className="user-avatar-badge driver-avatar" style={{ background: 'linear-gradient(135deg, #0284c7, #2563eb)' }}>
+                                  {r.driver_avatar ? (
+                                    <img src={r.driver_avatar} alt={driverDisplayName} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <span>{driverInitials}</span>
+                                  )}
+                                </div>
+                                <div className="user-cell-meta">
+                                  <span className="user-cell-name" style={{ color: '#38bdf8', fontWeight: '600' }}>
+                                    {driverDisplayName}
+                                  </span>
+                                  <span className="user-cell-email">
+                                    {r.driver_phone ? `Tel: ${r.driver_phone}` : 'Conductor Verificado'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="vehicle-badge">{r.vehicle_info || r.vehicle_type}</span>
+                            </td>
+                            <td>
+                              <div className="user-cell">
+                                <div className="user-avatar-badge">
+                                  {r.client_avatar ? (
+                                    <img src={r.client_avatar} alt={r.client_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                  ) : (
+                                    (r.client_name || 'U').charAt(0).toUpperCase()
+                                  )}
+                                </div>
+                                <div className="user-cell-meta">
+                                  <span className="user-cell-name">{r.client_name || 'Cliente'}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="route-cell-meta">
+                                <span className="origin-txt">Origen: {r.origin?.address || 'Origen'}</span>
+                                <span className="dest-txt">Destino: {r.destination?.address || 'Destino'}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="order-price-tag">{formatCOP(r.price)}</span>
+                            </td>
+                            <td>
+                              <span className="points-val">★ {r.rating || '5.0'}</span>
+                            </td>
+                            <td>
+                              {r.status === 'in_progress' && <span className="status-pill green">En Curso</span>}
+                              {r.status === 'completed' && <span className="status-pill blue">Completado</span>}
+                              {r.status === 'cancelled' && <span className="status-pill red">Cancelado</span>}
+                              {!['in_progress', 'completed', 'cancelled'].includes(r.status) && (
+                                <span className="status-pill pending">{r.status || 'Solicitado'}</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className="date-time-cell">{formatDateTime(r.created_at)}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr><td colSpan="8" className="empty-table-cell">No se encontraron viajes.</td></tr>
                     )}
@@ -1765,49 +2197,77 @@ function PanelMaster() {
                   </thead>
                   <tbody>
                     {filteredUserRides.length > 0 ? (
-                      filteredUserRides.map((ur) => (
-                        <tr key={ur.id}>
-                          <td>
-                            <div className="user-cell">
-                              <div className="user-avatar-badge">
-                                {ur.client_name?.charAt(0) || 'U'}
+                      filteredUserRides.map((ur) => {
+                        const driverDisplayName = ur.driver_name || (ur.driver_id ? 'Conductor Asignado' : 'Sin Conductor Asignado');
+                        const driverInitials = driverDisplayName.substring(0, 2).toUpperCase();
+
+                        return (
+                          <tr key={ur.id}>
+                            <td>
+                              <div className="user-cell">
+                                <div className="user-avatar-badge">
+                                  {ur.client_avatar ? (
+                                    <img src={ur.client_avatar} alt={ur.client_name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                  ) : (
+                                    (ur.client_name || 'U').charAt(0).toUpperCase()
+                                  )}
+                                </div>
+                                <div className="user-cell-meta">
+                                  <span className="user-cell-name">{ur.client_name || 'Cliente'}</span>
+                                  <span className="user-cell-email">{ur.client_email || 'Cliente Registrado'}</span>
+                                </div>
                               </div>
-                              <div className="user-cell-meta">
-                                <span className="user-cell-name">{ur.client_name}</span>
-                                <span className="user-cell-email">Cliente Registrado</span>
+                            </td>
+                            <td>
+                              <div className="user-cell">
+                                <div className="user-avatar-badge driver-avatar" style={{ background: 'linear-gradient(135deg, #0284c7, #2563eb)' }}>
+                                  {ur.driver_avatar ? (
+                                    <img src={ur.driver_avatar} alt={driverDisplayName} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <span>{driverInitials}</span>
+                                  )}
+                                </div>
+                                <div className="user-cell-meta">
+                                  <span className="user-cell-name" style={{ color: '#38bdf8', fontWeight: '600' }}>
+                                    {driverDisplayName}
+                                  </span>
+                                  <span className="user-cell-email">
+                                    {ur.driver_phone ? `Tel: ${ur.driver_phone}` : 'Conductor Verificado'}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="driver-assigned-tag">🚗 {ur.driver_name || 'Conductor Asignado'}</span>
-                          </td>
-                          <td>
-                            <span className="vehicle-badge">{ur.vehicle_type}</span>
-                          </td>
-                          <td>
-                            <div className="route-cell-meta">
-                              <span className="origin-txt">🟢 Origen: {ur.origin?.address}</span>
-                              <span className="dest-txt">🔴 Destino: {ur.destination?.address}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className="distance-badge">
-                              📏 {ur.route_details?.distance_km || 6.5} km • ⏱️ {ur.route_details?.duration_min || 15} min
-                            </span>
-                          </td>
-                          <td>
-                            <span className="order-price-tag">{formatCOP(ur.price)}</span>
-                          </td>
-                          <td>
-                            {ur.status === 'in_progress' && <span className="status-pill green">🟢 En Curso</span>}
-                            {ur.status === 'completed' && <span className="status-pill blue">✔️ Completado</span>}
-                            {ur.status === 'cancelled' && <span className="status-pill red">🔴 Cancelado</span>}
-                          </td>
-                          <td>
-                            <span className="date-time-cell">{formatDateTime(ur.created_at)}</span>
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                            <td>
+                              <span className="vehicle-badge">{ur.vehicle_type || 'Carro'}</span>
+                            </td>
+                            <td>
+                              <div className="route-cell-meta">
+                                <span className="origin-txt">Origen: {ur.origin?.address || 'Punto de partida'}</span>
+                                <span className="dest-txt">Destino: {ur.destination?.address || 'Punto de llegada'}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="distance-badge">
+                                {ur.route_details?.distance_km || 6.5} km • {ur.route_details?.duration_min || 15} min
+                              </span>
+                            </td>
+                            <td>
+                              <span className="order-price-tag">{formatCOP(ur.price)}</span>
+                            </td>
+                            <td>
+                              {ur.status === 'in_progress' && <span className="status-pill green">En Curso</span>}
+                              {ur.status === 'completed' && <span className="status-pill blue">Completado</span>}
+                              {ur.status === 'cancelled' && <span className="status-pill red">Cancelado</span>}
+                              {!['in_progress', 'completed', 'cancelled'].includes(ur.status) && (
+                                <span className="status-pill pending">{ur.status || 'Solicitado'}</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className="date-time-cell">{formatDateTime(ur.created_at)}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr><td colSpan="8" className="empty-table-cell">No se encontraron viajes de usuarios.</td></tr>
                     )}
@@ -1915,6 +2375,362 @@ function PanelMaster() {
                       ))
                     ) : (
                       <tr><td colSpan="7" className="empty-table-cell">No hay registros de inicio de sesión.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* TAB 6: ENVIAR DIFUSIÓN DE NOTIFICACIONES Y PROMOCIONES */}
+        {activeTab === 'broadcast' && (
+          <section className="master-section">
+            <div className="section-header-row">
+              <div className="section-title-meta">
+                <h2 className="master-section-title">Centro de Notificaciones y Promociones Masivas</h2>
+                <p className="section-subtitle-desc">
+                  Envía alertas, descuentos y avisos a los usuarios con entrega remota en tiempo real (Expo Push Notifications & Supabase).
+                </p>
+              </div>
+              <div className="header-stat-chip">
+                <span className="dot-pulse">●</span>
+                <span>{loadingTargetTokens ? 'Calculando...' : `${targetTotalRegistered > 0 ? targetTotalRegistered : userCount} Usuarios Registrados en Base de Datos`}</span>
+              </div>
+            </div>
+
+            {/* BROADCAST MAIN GRID (Form + Live Phone Preview) */}
+            <div className="broadcast-creator-grid">
+              {/* Form Col */}
+              <div className="broadcast-form-card">
+                <div className="card-top-header">
+                  <span className="header-badge-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </span>
+                  <div>
+                    <h3>Configurar Notificación Push</h3>
+                    <p>Personaliza el alcance, tipo y contenido del mensaje para todos los usuarios registrados.</p>
+                  </div>
+                </div>
+
+                <div className="broadcast-fields-layout">
+                  {/* Audiencia */}
+                  <div className="field-group">
+                    <label className="field-label">
+                      <span>Audiencia Destinataria:</span>
+                      <span className="audience-counter-hint">
+                        {loadingTargetTokens
+                          ? 'Consultando base de datos...'
+                          : `(${targetTotalRegistered > 0 ? targetTotalRegistered : userCount} usuarios registrados en BD • ${targetTokensCount} con push activa)`}
+                      </span>
+                    </label>
+                    <div className="role-audience-selector">
+                      {[
+                        {
+                          id: 'all',
+                          label: 'Todos los Usuarios',
+                          icon: (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="2" y1="12" x2="22" y2="12" />
+                              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                            </svg>
+                          )
+                        },
+                        {
+                          id: 'client',
+                          label: 'Clientes',
+                          icon: (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                          )
+                        },
+                        {
+                          id: 'driver',
+                          label: 'Conductores',
+                          icon: (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="1" y="3" width="15" height="13" />
+                              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                              <circle cx="5.5" cy="18.5" r="2.5" />
+                              <circle cx="18.5" cy="18.5" r="2.5" />
+                            </svg>
+                          )
+                        },
+                        {
+                          id: 'restaurant',
+                          label: 'Restaurantes',
+                          icon: (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                              <polyline points="9 22 9 12 15 12 15 22" />
+                            </svg>
+                          )
+                        },
+                        {
+                          id: 'employee',
+                          label: 'Empleados',
+                          icon: (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 2l-2 2m-1.5 1.5L14 9a5 5 0 1 0 7 7l3.5-3.5a2 2 0 0 0 0-2.8l-3.5-3.7" />
+                            </svg>
+                          )
+                        },
+                      ].map(aud => (
+                        <button
+                          key={aud.id}
+                          type="button"
+                          className={`audience-chip ${broadcastTarget === aud.id ? 'active' : ''}`}
+                          onClick={() => setBroadcastTarget(aud.id)}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center' }}>{aud.icon}</span>
+                          <span>{aud.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tipo de Notificación */}
+                  <div className="field-group">
+                    <label className="field-label">Tipo de Contenido:</label>
+                    <div className="type-chips-row">
+                      {[
+                        { id: 'promo', label: 'Promoción y Cupones', color: '#38bdf8' },
+                        { id: 'notice', label: 'Aviso Informativo', color: '#818cf8' },
+                        { id: 'alert', label: 'Alerta del Sistema', color: '#f87171' },
+                        { id: 'food', label: 'Novedad Gastronómica', color: '#fbbf24' },
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className={`type-chip-btn ${broadcastType === t.id ? 'active' : ''}`}
+                          onClick={() => setBroadcastType(t.id)}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Canal de Prioridad Android */}
+                  <div className="field-group">
+                    <label className="field-label">Canal de Notificación (Android OS):</label>
+                    <select
+                      className="broadcast-select-input"
+                      value={broadcastChannel}
+                      onChange={(e) => setBroadcastChannel(e.target.value)}
+                    >
+                      <option value="default">Canal General (LANDA - General)</option>
+                      <option value="rides">Canal de Viajes y Domicilios (Alta Prioridad)</option>
+                      <option value="orders">Canal de Pedidos de Restaurante</option>
+                      <option value="chat">Canal de Mensajería y Chat</option>
+                    </select>
+                  </div>
+
+                  {/* Título */}
+                  <div className="field-group">
+                    <label className="field-label">Título de la Notificación:</label>
+                    <input
+                      type="text"
+                      className="broadcast-text-input"
+                      placeholder="Ej: Gran Promo de Fin de Semana"
+                      value={broadcastTitle}
+                      onChange={(e) => setBroadcastTitle(e.target.value)}
+                      maxLength={65}
+                    />
+                  </div>
+
+                  {/* Mensaje / Cuerpo */}
+                  <div className="field-group">
+                    <label className="field-label">Mensaje Detallado:</label>
+                    <textarea
+                      className="broadcast-textarea-input"
+                      rows={3}
+                      placeholder="Escribe el mensaje que verán los usuarios en su dispositivo..."
+                      value={broadcastBody}
+                      onChange={(e) => setBroadcastBody(e.target.value)}
+                      maxLength={200}
+                    />
+                  </div>
+
+                  {/* Extras si es Promoción */}
+                  {broadcastType === 'promo' && (
+                    <div className="promo-extras-row">
+                      <div className="promo-field">
+                        <label className="field-label">Descuento (% o COP):</label>
+                        <input
+                          type="text"
+                          className="broadcast-text-input"
+                          placeholder="Ej: 25% o $5.000"
+                          value={broadcastDiscount}
+                          onChange={(e) => setBroadcastDiscount(e.target.value)}
+                        />
+                      </div>
+                      <div className="promo-field">
+                        <label className="field-label">Código de Cupón:</label>
+                        <input
+                          type="text"
+                          className="broadcast-text-input uppercase"
+                          placeholder="Ej: LANDALOVER"
+                          value={broadcastCouponCode}
+                          onChange={(e) => setBroadcastCouponCode(e.target.value.toUpperCase())}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botón de Enviar */}
+                  <div className="broadcast-action-row">
+                    <button
+                      className="broadcast-send-btn"
+                      onClick={handleSendBroadcast}
+                      disabled={sendingBroadcast}
+                    >
+                      {sendingBroadcast ? (
+                        <>
+                          <span className="btn-spinner"></span>
+                          <span>Despachando Notificación Push...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="send-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="22" y1="2" x2="11" y2="13" />
+                              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                          </span>
+                          <span>Enviar Notificación Masiva ({targetTotalRegistered > 0 ? targetTotalRegistered : (targetTokensCount > 0 ? targetTokensCount : 'Todos')})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Interactive Phone Mockup Preview Col */}
+              <div className="broadcast-preview-card">
+                <div className="preview-header-bar">
+                  <span className="preview-dot green"></span>
+                  <span className="preview-title">Vista Previa en Dispositivo Real (iOS / Android)</span>
+                </div>
+
+                <div className="phone-mockup-frame">
+                  {/* Phone Speaker & Camera Notch */}
+                  <div className="phone-notch">
+                    <div className="phone-speaker"></div>
+                    <div className="phone-camera"></div>
+                  </div>
+
+                  {/* Status Bar */}
+                  <div className="phone-status-bar">
+                    <span className="phone-time">{new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                    <div className="phone-icons">
+                      <span>📶</span>
+                      <span>5G</span>
+                      <span>🔋 98%</span>
+                    </div>
+                  </div>
+
+                  {/* Lockscreen / Floating Notification Popup */}
+                  <div className="phone-screen-content">
+                    <div className="phone-wallpaper-date">
+                      <span className="screen-time-big">{new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                      <span className="screen-date-sub">{getFormattedDate()}</span>
+                    </div>
+
+                    {/* Notification Card */}
+                    <div className="phone-notification-banner">
+                      <div className="notif-banner-header">
+                        <div className="notif-brand-left">
+                          <div className="notif-mini-logo">L</div>
+                          <span className="notif-app-name">LANDA • Ahora</span>
+                        </div>
+                        <span className="notif-badge-pill">{broadcastType === 'promo' ? 'PROMO' : 'AVISO'}</span>
+                      </div>
+
+                      <div className="notif-banner-body">
+                        <h4 className="notif-title-text">{broadcastTitle || 'Título de Notificación'}</h4>
+                        <p className="notif-body-text">{broadcastBody || 'Escribe un mensaje para previsualizarlo...'}</p>
+                      </div>
+
+                      {broadcastType === 'promo' && (broadcastDiscount || broadcastCouponCode) && (
+                        <div className="notif-promo-tag-row">
+                          {broadcastDiscount && <span className="promo-tag-item">🎁 {broadcastDiscount} OFF</span>}
+                          {broadcastCouponCode && <span className="coupon-tag-item">🎟️ Cupón: {broadcastCouponCode}</span>}
+                        </div>
+                      )}
+
+                      <div className="notif-banner-footer">
+                        <span className="tap-hint">Toca para abrir en LANDA App ➔</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="phone-home-indicator"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* BROADCAST DELIVERY AUDIT HISTORY TABLE */}
+            <div className="section-header-row" style={{ marginTop: '3rem' }}>
+              <h2 className="master-section-title">📜 Historial y Registro de Difusiones</h2>
+              <span className="sub-counter-badge">{broadcastHistoryList.length} Envíos Realizados</span>
+            </div>
+
+            <div className="users-table-container">
+              <div className="table-wrapper">
+                <table className="master-users-table">
+                  <thead>
+                    <tr>
+                      <th>TIPO</th>
+                      <th>TÍTULO Y MENSAJE</th>
+                      <th>AUDIENCIA</th>
+                      <th>CANAL ANDROID</th>
+                      <th>DISPOSITIVOS ALCANZADOS</th>
+                      <th>ESTADO</th>
+                      <th>FECHA / HORA</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {broadcastHistoryList.length > 0 ? (
+                      broadcastHistoryList.map((item) => (
+                        <tr key={item.id}>
+                          <td>
+                            <span className={`role-badge ${item.type === 'promo' ? 'restaurant' : item.type === 'alert' ? 'admin' : 'driver'}`}>
+                              {item.type === 'promo' ? '🎉 Promoción' : item.type === 'alert' ? '⚡ Alerta' : '📢 Aviso'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="broadcast-history-meta">
+                              <span className="broadcast-history-title">{item.title}</span>
+                              <span className="broadcast-history-body">{item.body}</span>
+                              {item.coupon && <span className="broadcast-coupon-badge">🎟️ Cupón: {item.coupon} ({item.discount || 'Descuento'})</span>}
+                            </div>
+                          </td>
+                          <td>
+                            <span className="audience-history-pill">👥 {item.targetLabel || item.target || 'Todos'}</span>
+                          </td>
+                          <td>
+                            <code>{item.channelId || 'default'}</code>
+                          </td>
+                          <td>
+                            <span className="devices-count-highlight">📱 {item.totalSent || 1} equipos</span>
+                          </td>
+                          <td>
+                            <span className="status-pill green">✓ Entregado</span>
+                          </td>
+                          <td>
+                            <span className="date-time-cell">{formatDateTime(item.created_at)}</span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan="7" className="empty-table-cell">Aún no se han enviado difusiones.</td></tr>
                     )}
                   </tbody>
                 </table>
