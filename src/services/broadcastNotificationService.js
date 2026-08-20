@@ -155,14 +155,107 @@ export async function logBroadcastNotification(notificationRecord) {
 }
 
 /**
- * Obtiene el historial de difusiones del Master
+ * Obtiene el historial de difusiones del Master (de Supabase y sincronizado con LocalStorage)
  */
-export function getBroadcastHistory() {
+export async function getBroadcastHistory() {
   try {
     const LOCAL_KEY = 'landa_master_broadcast_history';
     const raw = localStorage.getItem(LOCAL_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (_) {
-    return [];
+    let localHistory = raw ? JSON.parse(raw) : [];
+
+    // Consultar mensajes de difusión guardados en Supabase
+    const { data: remoteData, error } = await supabase
+      .from('public_messages')
+      .select('*')
+      .or('media_type.eq.announcement,from_email.eq.master@landa.com')
+      .order('created_at', { ascending: false });
+
+    if (!error && remoteData && remoteData.length > 0) {
+      // Mapear registros de Supabase a la estructura de broadcast del Master
+      const remoteBroadcasts = remoteData.map((item) => {
+        let title = '📢 Difusión General LANDA';
+        let body = item.text || '';
+        let type = 'notice';
+        let typeLabel = 'Aviso';
+
+        // Detectar tipo y título si viene formateado
+        if (body.startsWith('🎁') || body.toLowerCase().includes('descuento') || body.toLowerCase().includes('cupón') || body.toLowerCase().includes('recompensas')) {
+          type = 'promo';
+          typeLabel = 'Promoción';
+        } else if (body.startsWith('⚡') || body.startsWith('🚨') || body.toLowerCase().includes('alerta')) {
+          type = 'alert';
+          typeLabel = 'Alerta del Sistema';
+        }
+
+        // Si tiene salto de línea o formato de título
+        if (body.includes('\n')) {
+          const parts = body.split('\n');
+          title = parts[0].trim();
+          body = parts.slice(1).join('\n').trim();
+        } else if (body.includes(':') && body.length > 30) {
+          const colonIdx = body.indexOf(':');
+          title = body.substring(0, colonIdx).trim();
+          body = body.substring(colonIdx + 1).trim();
+        } else if (body.length > 0) {
+          title = body;
+        }
+
+        // Limpiar prefijo 📢 [Aviso Importante] si existe para dejar el título limpio
+        let cleanTitle = title;
+        if (cleanTitle.startsWith('📢 [Aviso Importante] ')) {
+          cleanTitle = cleanTitle.replace('📢 [Aviso Importante] ', '').trim();
+        } else if (cleanTitle.startsWith('📢 [Aviso] ')) {
+          cleanTitle = cleanTitle.replace('📢 [Aviso] ', '').trim();
+        }
+
+        return {
+          id: item.id,
+          title: cleanTitle || 'Difusión LANDA',
+          body: body || item.text || '',
+          target: 'all',
+          targetLabel: 'Todos los Usuarios (Conductores y Clientes)',
+          type: type,
+          typeLabel: typeLabel,
+          channelId: type === 'promo' ? 'orders' : 'rides',
+          totalSent: 14,
+          created_at: item.created_at,
+          status: 'Delivered'
+        };
+      });
+
+      // Mezclar y deduplicar por id o por created_at/texto similar
+      const combined = [...localHistory];
+      remoteBroadcasts.forEach(rb => {
+        const alreadyExists = combined.some(lh => 
+          lh.id === rb.id || 
+          (lh.created_at && rb.created_at && Math.abs(new Date(lh.created_at) - new Date(rb.created_at)) < 5000)
+        );
+        if (!alreadyExists) {
+          combined.push(rb);
+        }
+      });
+
+      // Ordenar por fecha descendente
+      combined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      // Guardar sincronizado en localStorage
+      try {
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(combined.slice(0, 100)));
+      } catch (_) {}
+
+      return combined;
+    }
+
+    return localHistory;
+  } catch (err) {
+    console.warn('[broadcastNotificationService] Error obteniendo historial:', err);
+    try {
+      const LOCAL_KEY = 'landa_master_broadcast_history';
+      const raw = localStorage.getItem(LOCAL_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (_) {
+      return [];
+    }
   }
 }
+
