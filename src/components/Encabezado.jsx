@@ -209,6 +209,16 @@ function Encabezado() {
       )
     },
     {
+      label: 'Vuelos y paquetes turísticos',
+      path: 'https://travel-agencyweb.co/?whitelabelid=landaapp',
+      isExternal: true,
+      icon: (
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13.5 8.5 5.3 6.7c-.7-.2-1.4.1-1.8.7l-.5.7 5.5 3.5L5 15l-2.5-.5-.8.8 2.8 2 2 2.8.8-.8-.5-2.5 3.4-3.5 3.5 5.5.7-.5c.6-.4.9-1.1.7-1.8z" />
+        </svg>
+      )
+    },
+    {
       label: 'Cobertura',
       path: '/cobertura',
       icon: (
@@ -262,6 +272,19 @@ function Encabezado() {
           <nav className="nav-links desktop-nav" aria-label="Navegación principal">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
+              if (item.isExternal) {
+                return (
+                  <a
+                    key={item.path}
+                    href={item.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={closeMenu}
+                  >
+                    {item.label}
+                  </a>
+                );
+              }
               return (
                 <Link
                   key={item.path}
@@ -489,6 +512,23 @@ function Encabezado() {
           <nav className="mobile-nav-links">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
+              if (item.isExternal) {
+                return (
+                  <a
+                    key={item.path}
+                    href={item.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mobile-nav-item"
+                    onClick={closeMenu}
+                  >
+                    <div className="mobile-nav-item-left">
+                      <span className="mobile-item-icon">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </div>
+                  </a>
+                );
+              }
               return (
                 <Link
                   key={item.path}
