@@ -30,6 +30,11 @@ const FooterIcons = {
       <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
     </svg>
   ),
+  Plane: () => (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13.5 8.5 5.3 6.7c-.7-.2-1.4.1-1.8.7l-.5.7 5.5 3.5L5 15l-2.5-.5-.8.8 2.8 2 2 2.8.8-.8-.5-2.5 3.4-3.5 3.5 5.5.7-.5c.6-.4.9-1.1.7-1.8z" />
+    </svg>
+  ),
   Store: () => (
     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
       <path d="M3 21h18M3 7v1a3 3 0 0 0 6 0V7m0 0v1a3 3 0 0 0 6 0V7m0 0v1a3 3 0 0 0 6 0V7M4 7l2-4h12l2 4M5 21V10.85M19 21V10.85" />
@@ -153,6 +158,22 @@ function PiePagina() {
                 <Link to="/restaurantes">
                   <FooterIcons.Restaurant />
                   <span>Restaurantes y Gastronomía</span>
+                </Link>
+              </li>
+              <li>
+                <a
+                  href="https://travel-agencyweb.co/?whitelabelid=landaapp"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <FooterIcons.Plane />
+                  <span>Vuelos y Paquetes Turísticos</span>
+                </a>
+              </li>
+              <li>
+                <Link to="/cobertura">
+                  <FooterIcons.MapPin />
+                  <span>Cobertura</span>
                 </Link>
               </li>
               <li>

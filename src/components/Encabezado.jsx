@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../assets/images/logo.png';
 import AuthModal from './AuthModal';
 import { supabase } from '../supabaseClient';
@@ -8,12 +8,20 @@ import { useToast } from '../context/ToastContext';
 function Encabezado() {
   const { showToast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const userMenuRef = useRef(null);
+
+  // Automatically scroll to top and close menus whenever location changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    setIsMenuOpen(false);
+    setIsUserMenuOpen(false);
+  }, [location.pathname]);
 
   // Scroll position detection for header translucency transition
   useEffect(() => {
@@ -138,6 +146,17 @@ function Encabezado() {
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const closeMenu = () => setIsMenuOpen(false);
 
+  const handleNavigation = (path, isExternal = false) => {
+    setIsMenuOpen(false);
+    setIsUserMenuOpen(false);
+    if (isExternal) {
+      window.open(path, '_blank', 'noopener,noreferrer');
+    } else {
+      navigate(path);
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+  };
+
   const openLogin = () => {
     setIsAuthOpen(true);
     closeMenu();
@@ -209,7 +228,7 @@ function Encabezado() {
       )
     },
     {
-      label: 'Vuelos y paquetes turísticos',
+      label: 'Vuelos y Paquetes Turísticos',
       path: 'https://travel-agencyweb.co/?whitelabelid=landaapp',
       isExternal: true,
       icon: (
@@ -475,149 +494,144 @@ function Encabezado() {
             </button>
           </div>
         </div>
+      </header>
 
-        {/* Mobile Side Drawer Navigation */}
-        <aside className={`mobile-nav-drawer ${isMenuOpen ? 'open' : ''}`} aria-label="Menú móvil">
-          <div className="mobile-drawer-header">
-            <div className="mobile-brand">
-              <img src={logo} alt="Landa Logo" className="mobile-drawer-logo" />
-            </div>
-            <button className="mobile-close-btn" onClick={closeMenu} aria-label="Cerrar menú">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+      {/* Mobile Side Drawer Navigation */}
+      <aside className={`mobile-nav-drawer ${isMenuOpen ? 'open' : ''}`} aria-label="Menú móvil">
+        <div className="mobile-drawer-header">
+          <div className="mobile-brand">
+            <img src={logo} alt="Landa Logo" className="mobile-drawer-logo" />
           </div>
+          <button className="mobile-close-btn" onClick={closeMenu} aria-label="Cerrar menú">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
 
-          {/* User info card inside mobile menu */}
-          {user && (
-            <div className="mobile-user-card">
-              <div className="mobile-user-header">
-                <div className="avatar-wrapper">
-                  <span className="mobile-user-avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
-                  <span className="user-status-dot" />
-                </div>
-                <div className="mobile-user-meta">
-                  <span className="mobile-user-name">{user.name}</span>
-                  <span className="mobile-user-email">{user.email}</span>
-                </div>
+        {/* User info card inside mobile menu */}
+        {user && (
+          <div className="mobile-user-card">
+            <div className="mobile-user-header">
+              <div className="avatar-wrapper">
+                <span className="mobile-user-avatar">{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+                <span className="user-status-dot" />
               </div>
-              <span className={`role-badge ${user.role || 'client'}`}>
-                {getRoleLabel(user.role, user.isEmployee)}
-              </span>
+              <div className="mobile-user-meta">
+                <span className="mobile-user-name">{user.name}</span>
+                <span className="mobile-user-email">{user.email}</span>
+              </div>
             </div>
-          )}
+            <span className={`role-badge ${user.role || 'client'}`}>
+              {getRoleLabel(user.role, user.isEmployee)}
+            </span>
+          </div>
+        )}
 
-          <nav className="mobile-nav-links">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              if (item.isExternal) {
-                return (
-                  <a
-                    key={item.path}
-                    href={item.path}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mobile-nav-item"
-                    onClick={closeMenu}
-                  >
-                    <div className="mobile-nav-item-left">
-                      <span className="mobile-item-icon">{item.icon}</span>
-                      <span>{item.label}</span>
-                    </div>
-                  </a>
-                );
-              }
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`mobile-nav-item ${isActive ? 'active' : ''}`}
-                  onClick={closeMenu}
+        <nav className="mobile-nav-links">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <button
+                type="button"
+                key={item.path}
+                className={`mobile-nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => handleNavigation(item.path, item.isExternal)}
+              >
+                <div className="mobile-nav-item-left">
+                  <span className="mobile-item-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+                {isActive && <span className="mobile-active-tag">Actual</span>}
+              </button>
+            );
+          })}
+
+          {/* Quick Panel Links in Mobile if Logged In */}
+          {user && (
+            <div className="mobile-panel-links">
+              {(user.role === 'admin' || user.email?.toLowerCase() === 'admin@landa.com' || user.email?.toLowerCase().includes('master')) && (
+                <button
+                  type="button"
+                  className="mobile-nav-item panel-item purple"
+                  onClick={() => handleNavigation('/master')}
                 >
                   <div className="mobile-nav-item-left">
-                    <span className="mobile-item-icon">{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span className="mobile-item-icon">👑</span>
+                    <span>Panel Master</span>
                   </div>
-                  {isActive && <span className="mobile-active-tag">Actual</span>}
-                </Link>
-              );
-            })}
+                </button>
+              )}
+              {(user.role === 'employee' || user.role === 'empleado' || user.isEmployee) && (
+                <button
+                  type="button"
+                  className="mobile-nav-item panel-item blue"
+                  onClick={() => handleNavigation('/empleado')}
+                >
+                  <div className="mobile-nav-item-left">
+                    <span className="mobile-item-icon">💼</span>
+                    <span>Panel Empleado</span>
+                  </div>
+                </button>
+              )}
+              {(user.role === 'restaurant' || user.role === 'restaurante') && (
+                <button
+                  type="button"
+                  className="mobile-nav-item panel-item amber"
+                  onClick={() => handleNavigation('/restaurante/gestion')}
+                >
+                  <div className="mobile-nav-item-left">
+                    <span className="mobile-item-icon">🏪</span>
+                    <span>Gestión Restaurante</span>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
+        </nav>
 
-            {/* Quick Panel Links in Mobile if Logged In */}
-            {user && (
-              <div className="mobile-panel-links">
-                {(user.role === 'admin' || user.email?.toLowerCase() === 'admin@landa.com' || user.email?.toLowerCase().includes('master')) && (
-                  <Link to="/master" className="mobile-nav-item panel-item purple" onClick={closeMenu}>
-                    <div className="mobile-nav-item-left">
-                      <span className="mobile-item-icon">👑</span>
-                      <span>Panel Master</span>
-                    </div>
-                  </Link>
-                )}
-                {(user.role === 'employee' || user.role === 'empleado' || user.isEmployee) && (
-                  <Link to="/empleado" className="mobile-nav-item panel-item blue" onClick={closeMenu}>
-                    <div className="mobile-nav-item-left">
-                      <span className="mobile-item-icon">💼</span>
-                      <span>Panel Empleado</span>
-                    </div>
-                  </Link>
-                )}
-                {(user.role === 'restaurant' || user.role === 'restaurante') && (
-                  <Link to="/restaurante/gestion" className="mobile-nav-item panel-item amber" onClick={closeMenu}>
-                    <div className="mobile-nav-item-left">
-                      <span className="mobile-item-icon">🏪</span>
-                      <span>Gestión Restaurante</span>
-                    </div>
-                  </Link>
-                )}
-              </div>
-            )}
-          </nav>
+        <div className="mobile-drawer-footer">
+          <a
+            href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-download-cta mobile-cta"
+            onClick={closeMenu}
+          >
+            <div className="cta-icon-wrapper">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.3">
+                <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
+                <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
+              </svg>
+            </div>
+            <div className="cta-text">
+              <span className="cta-title">Descargar Landa App</span>
+              <span className="cta-subtitle">Instalación Rápida • Gratis</span>
+            </div>
+          </a>
 
-          <div className="mobile-drawer-footer">
-            <a
-              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-download-cta mobile-cta"
-              onClick={closeMenu}
-            >
-              <div className="cta-icon-wrapper">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.3">
-                  <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                  <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
-                </svg>
-              </div>
-              <div className="cta-text">
-                <span className="cta-title">Descargar Landa App</span>
-                <span className="cta-subtitle">Instalación Rápida • Gratis</span>
-              </div>
-            </a>
-
-            {user ? (
-              <button className="btn-mobile-logout" onClick={handleLogout}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-                <span>Cerrar Sesión</span>
-              </button>
-            ) : (
-              <button className="btn-secondary-modern full-width" onClick={openLogin}>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                  <polyline points="10 17 15 12 10 7" />
-                  <line x1="15" y1="12" x2="3" y2="12" />
-                </svg>
-                <span>Iniciar Sesión</span>
-              </button>
-            )}
-          </div>
-        </aside>
-      </header>
+          {user ? (
+            <button className="btn-mobile-logout" onClick={handleLogout}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Cerrar Sesión</span>
+            </button>
+          ) : (
+            <button className="btn-secondary-modern full-width" onClick={openLogin}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              <span>Iniciar Sesión</span>
+            </button>
+          )}
+        </div>
+      </aside>
 
       <AuthModal
         isOpen={isAuthOpen}

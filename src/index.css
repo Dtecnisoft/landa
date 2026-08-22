@@ -708,12 +708,18 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   padding: 0.85rem 1rem;
   border-radius: 0.85rem;
   color: #cbd5e1;
   font-weight: 600;
   font-size: 1.02rem;
   text-decoration: none;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
   transition: all 0.2s ease;
   background: transparent;
 }
