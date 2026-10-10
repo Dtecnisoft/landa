@@ -232,15 +232,26 @@ function EmployeeDashboard() {
             )}
 
             {hasFinancesPermission && (
-              <button className="quick-action-card" onClick={() => navigate('/empleado/finanzas')}>
-                <div className="action-icon-box purple">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="2" y="6" width="20" height="12" rx="2" />
-                    <circle cx="12" cy="12" r="2" />
-                  </svg>
-                </div>
-                <span>Finanzas</span>
-              </button>
+              <>
+                <button className="quick-action-card" onClick={() => navigate('/empleado/finanzas')}>
+                  <div className="action-icon-box purple">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="6" width="20" height="12" rx="2" />
+                      <circle cx="12" cy="12" r="2" />
+                    </svg>
+                  </div>
+                  <span>Finanzas</span>
+                </button>
+
+                <button className="quick-action-card" onClick={() => navigate('/empleado/bonos')}>
+                  <div className="action-icon-box amber">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                  </div>
+                  <span>Historial de Bonos</span>
+                </button>
+              </>
             )}
           </div>
         </section>

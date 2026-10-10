@@ -20,6 +20,7 @@ import AdminApproveRestaurants from './components/AdminApproveRestaurants';
 import AdminApproveDrivers from './components/AdminApproveDrivers';
 import AdminApprovePosts from './components/AdminApprovePosts';
 import AdminFinances from './components/AdminFinances';
+import AdminBonusHistory from './components/AdminBonusHistory';
 import EmployeeDashboard from './components/EmployeeDashboard';
 import RestaurantDashboard from './components/RestaurantDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -79,6 +80,11 @@ function MainLayout() {
               <AdminFinances />
             </ProtectedRoute>
           } />
+          <Route path="/master/bonos" element={
+            <ProtectedRoute allowedRoles={['master', 'admin']}>
+              <AdminBonusHistory />
+            </ProtectedRoute>
+          } />
 
           {/* Rutas de empleado protegidas */}
           <Route path="/empleado" element={
@@ -94,6 +100,11 @@ function MainLayout() {
           <Route path="/empleado/finanzas" element={
             <ProtectedRoute allowedRoles={['employee', 'master', 'admin']}>
               <AdminFinances />
+            </ProtectedRoute>
+          } />
+          <Route path="/empleado/bonos" element={
+            <ProtectedRoute allowedRoles={['employee', 'master', 'admin']}>
+              <AdminBonusHistory />
             </ProtectedRoute>
           } />
 

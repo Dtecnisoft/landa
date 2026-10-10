@@ -268,6 +268,97 @@ function PanelMaster() {
   const [loadingDriverWalletTxs, setLoadingDriverWalletTxs] = useState(false);
   const [submittingDriverBonus, setSubmittingDriverBonus] = useState(false);
 
+  // Historial Global de Bonos Asignados a Conductores (Requisito 9)
+  const [isBonusHistoryModalOpen, setIsBonusHistoryModalOpen] = useState(false);
+  const [bonusHistoryList, setBonusHistoryList] = useState([]);
+  const [loadingBonusHistory, setLoadingBonusHistory] = useState(false);
+  const [bonusHistorySearchQuery, setBonusHistorySearchQuery] = useState('');
+
+  const handleOpenBonusHistoryModal = async () => {
+    setIsBonusHistoryModalOpen(true);
+    setLoadingBonusHistory(true);
+    try {
+      // 1. Obtener transacciones de tipo admin_bonus, bono interno o bonus_credit
+      const { data: txsData, error: txsErr } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .or('type.eq.admin_bonus,type.eq.bonus_credit,payment_method.eq.bono interno')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (txsErr) {
+        console.error('Error fetching bonus transactions:', txsErr);
+      }
+
+      const txs = txsData || [];
+
+      // 2. Extraer driver_ids únicos para traer nombres y datos de conductores/usuarios
+      const driverIds = [...new Set(txs.map(t => t.driver_id).filter(Boolean))];
+
+      let usersMap = {};
+      let driversMap = {};
+
+      if (driverIds.length > 0) {
+        const [usersRes, driversRes] = await Promise.all([
+          supabase.from('users').select('id, name, last_name, email, phone').in('id', driverIds),
+          supabase.from('drivers').select('id, user_id, name, phone, email').or(`id.in.(${driverIds.join(',')}),user_id.in.(${driverIds.join(',')})`)
+        ]);
+
+        if (usersRes.data) {
+          usersRes.data.forEach(u => {
+            usersMap[u.id] = u;
+          });
+        }
+
+        if (driversRes.data) {
+          driversRes.data.forEach(d => {
+            if (d.id) driversMap[d.id] = d;
+            if (d.user_id) driversMap[d.user_id] = d;
+          });
+        }
+      }
+
+      // 3. Mapear cada transacción con el nombre del conductor
+      const enrichedHistory = txs.map(tx => {
+        const u = usersMap[tx.driver_id];
+        const d = driversMap[tx.driver_id];
+
+        let driverName = 'Conductor Landa';
+        let driverPhone = '';
+        let driverEmail = '';
+
+        if (u) {
+          driverName = `${u.name || ''} ${u.last_name || ''}`.trim() || u.email || driverName;
+          driverPhone = u.phone || '';
+          driverEmail = u.email || '';
+        } else if (d) {
+          driverName = d.name || driverName;
+          driverPhone = d.phone || '';
+          driverEmail = d.email || '';
+        }
+
+        return {
+          id: tx.id,
+          driver_id: tx.driver_id,
+          driver_name: driverName,
+          driver_phone: driverPhone,
+          driver_email: driverEmail,
+          amount: tx.amount || 0,
+          description: tx.description || 'Bono de viajes asignado',
+          created_at: tx.created_at,
+          payment_method: tx.payment_method || 'bono interno',
+          type: tx.type || 'admin_bonus'
+        };
+      });
+
+      setBonusHistoryList(enrichedHistory);
+    } catch (err) {
+      console.error('Error in handleOpenBonusHistoryModal:', err);
+    } finally {
+      setLoadingBonusHistory(false);
+    }
+  };
+
   const calculateAge = (birthDateStr) => {
     if (!birthDateStr) return null;
     const birth = new Date(birthDateStr);
@@ -1820,6 +1911,15 @@ function PanelMaster() {
                     </svg>
                   </div>
                   <span>Finanzas Globales</span>
+                </button>
+
+                <button className="quick-action-card" onClick={() => navigate('/master/bonos')}>
+                  <div className="action-icon-box amber">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                  </div>
+                  <span>Historial de Bonos</span>
                 </button>
               </div>
             </section>
