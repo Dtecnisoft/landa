@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import imgCarro from '../assets/images/carro.jpeg';
 import imgRestaurantes from '../assets/images/r.png';
 import imgSocial from '../assets/images/social2.jpeg';
+import { AppStoreBadge, PlayStoreBadge } from './StoreBadges';
 
 const features = [
   {
@@ -16,8 +17,9 @@ const features = [
       '✓ Tarifas transparentes sin cobros dinámicos ocultos',
       '✓ Rastreabilidad GPS y asistencia en tiempo real'
     ],
-    ctaText: '📲 Pedir Viaje en la App',
-    link: 'https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share',
+    ctaText: '📲 Descargar para Pedir Viaje',
+    playStore: 'https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share',
+    appStore: 'https://apps.apple.com/co/app/landa-app/id6811683400',
     btnColor: '#4556EC',
   },
   {
@@ -49,7 +51,8 @@ const features = [
       '✓ Mensajería directa segura entre habitantes locales'
     ],
     ctaText: '👥 Conectar con la Comunidad',
-    link: 'https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share',
+    playStore: 'https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share',
+    appStore: 'https://apps.apple.com/co/app/landa-app/id6811683400',
     btnColor: '#4556EC',
   }
 ];
@@ -148,24 +151,10 @@ function Caracteristicas() {
                         {feature.ctaText}
                       </button>
                     ) : (
-                      <a
-                        href={feature.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-action-approve full-width"
-                        style={{
-                          background: themeColor,
-                          borderColor: themeColor,
-                          padding: '0.85rem',
-                          fontSize: '0.9rem',
-                          fontWeight: 800,
-                          textAlign: 'center',
-                          textDecoration: 'none',
-                          display: 'block',
-                        }}
-                      >
-                        {feature.ctaText}
-                      </a>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <AppStoreBadge height={38} />
+                        <PlayStoreBadge height={38} />
+                      </div>
                     )}
                   </div>
                 </div>

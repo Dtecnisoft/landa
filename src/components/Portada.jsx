@@ -3,6 +3,7 @@ import imgP from '../assets/images/p.jpeg';
 import imgP2 from '../assets/images/p2.jpeg';
 import imgLandaP from '../assets/images/p3.png';
 import imgV from '../assets/images/v2.png';
+import { AppStoreBadge, PlayStoreBadge } from './StoreBadges';
 
 function Portada() {
   const images = [
@@ -65,38 +66,9 @@ function Portada() {
           <p>
             Revolucionamos la forma en que pides, compras y te mueves en tu ciudad. Todo lo que necesitas en la palma de tu mano.
           </p>
-          <div className="hero-actions">
-            <a
-              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary"
-              style={{
-                background: 'linear-gradient(135deg, #4556EC 0%, #3142c9 100%)',
-                borderColor: '#4556EC',
-                color: '#ffffff',
-                padding: '0.85rem 1.75rem',
-                borderRadius: '50px',
-                boxShadow: '0 10px 25px rgba(69, 86, 236, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.2) inset',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.85rem',
-                textDecoration: 'none',
-                transition: 'transform 0.25s ease, box-shadow 0.25s ease',
-              }}
-            >
-              <span style={{ fontSize: '1.4rem', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '50%', width: '36px', height: '36px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                📲
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: 1.2 }}>
-                <span style={{ fontWeight: 900, fontSize: '1.05rem', color: '#ffffff', letterSpacing: '0.2px' }}>
-                  Descargar Landa App
-                </span>
-                <span style={{ fontSize: '0.74rem', color: '#dbe0ff', fontWeight: 600 }}>
-                  ⚡ Gratis • Instalación Rápida
-                </span>
-              </div>
-            </a>
+          <div className="hero-actions" style={{ display: 'flex', gap: '0.85rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <AppStoreBadge height={48} />
+            <PlayStoreBadge height={48} />
           </div>
           <div className="hero-metrics">
             <div>

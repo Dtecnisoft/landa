@@ -77,6 +77,7 @@ export async function sendExpoPushBatch(pushTokens, { title, body, data = {}, ch
   const chunks = chunkArray(validTokens, 100);
   let totalDelivered = 0;
   let errors = [];
+  let tickets = [];
 
   for (const chunk of chunks) {
     const messages = chunk.map(token => ({
@@ -108,6 +109,7 @@ export async function sendExpoPushBatch(pushTokens, { title, body, data = {}, ch
 
       const resData = await response.json();
       console.log('[broadcastNotificationService] Respuesta de Expo Push API batch:', resData);
+      if (Array.isArray(resData?.data)) tickets.push(...resData.data);
       totalDelivered += chunk.length;
     } catch (err) {
       console.warn('[broadcastNotificationService] Error enviando lote a Expo:', err);
@@ -118,6 +120,7 @@ export async function sendExpoPushBatch(pushTokens, { title, body, data = {}, ch
   return {
     success: totalDelivered > 0,
     totalSent: totalDelivered,
+    tickets,
     errors: errors.length > 0 ? errors : null,
   };
 }

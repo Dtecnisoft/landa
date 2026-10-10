@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { AppStoreBadge, PlayStoreBadge } from './StoreBadges';
 
 const TEAM_MEMBERS = [
   {
@@ -256,29 +257,9 @@ function QuienesSomos() {
           <p style={{ color: '#94a3b8', maxWidth: '600px', margin: '0 auto 1.75rem auto', fontSize: '0.98rem', lineHeight: 1.55 }}>
             Registra tu restaurante, únete como conductor aliado o descarga nuestra súper-app para empezar a disfrutar de una experiencia local superior.
           </p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a
-              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary"
-              style={{
-                background: 'linear-gradient(135deg, #4556EC 0%, #3142c9 100%)',
-                borderColor: '#4556EC',
-                color: '#ffffff',
-                padding: '0.85rem 1.75rem',
-                borderRadius: '50px',
-                fontWeight: 800,
-                fontSize: '0.95rem',
-                boxShadow: '0 8px 24px rgba(69, 86, 236, 0.45)',
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
-            >
-              📲 Descargar Landa App
-            </a>
+          <div style={{ display: 'flex', gap: '0.85rem', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
+            <AppStoreBadge height={44} />
+            <PlayStoreBadge height={44} />
             <Link
               to="/contacto"
               style={{

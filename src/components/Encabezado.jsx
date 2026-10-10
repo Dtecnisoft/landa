@@ -434,30 +434,6 @@ function Encabezado() {
                 </button>
               </div>
             )}
-
-            {/* App Download CTA */}
-            <a
-              href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-download-cta desktop-cta"
-            >
-              <div className="cta-icon-wrapper">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                  <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
-                </svg>
-              </div>
-              <div className="cta-text">
-                <span className="cta-title">Descargar Landa App</span>
-                <span className="cta-subtitle">Gratis • Instalación rápida</span>
-              </div>
-              <span className="cta-arrow">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </span>
-            </a>
           </div>
 
           {/* Mobile Right Action Bar */}
@@ -592,24 +568,6 @@ function Encabezado() {
         </nav>
 
         <div className="mobile-drawer-footer">
-          <a
-            href="https://play.google.com/store/apps/details?id=com.landaappsas.landa&pcampaignid=web_share"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-download-cta mobile-cta"
-            onClick={closeMenu}
-          >
-            <div className="cta-icon-wrapper">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.3">
-                <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
-              </svg>
-            </div>
-            <div className="cta-text">
-              <span className="cta-title">Descargar Landa App</span>
-              <span className="cta-subtitle">Instalación Rápida • Gratis</span>
-            </div>
-          </a>
 
           {user ? (
             <button className="btn-mobile-logout" onClick={handleLogout}>

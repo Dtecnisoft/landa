@@ -1,4 +1,11 @@
 "# landa" 
 
-
+## funcionalidades a implementar perfil master:
+1. [] Administrar puntos del conductor y usuario opción de modificar o eliminar.
+2. [] Ver historial de conductor y usuario (viajes y novedades) 
+3. [] Añadir calificaciones al conductor y usuario.
+4. [x] Modificar el Saldo de la billetera del conductor como bono pero solo para que pueda hacer viajes ese saldo no se va a womppi y no se puede retirar.
+5. [x] Aprobación de publicaciones.
+6. [] Permitir modificar las contraseñas de los usuarios(cliente, conductor, restaurant, empleado).
+7. [x] Agregar botones de play store y app store para descargar la app de android y ios respectivamente.
 
