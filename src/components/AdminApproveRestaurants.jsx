@@ -20,6 +20,11 @@ function AdminApproveRestaurants() {
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
 
+  // Eliminación definitiva de restaurante (Requisito 10)
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingRestaurant, setDeletingRestaurant] = useState(false);
+
+
   const loadRestaurants = useCallback(async () => {
     setLoading(true);
     try {
@@ -70,7 +75,31 @@ function AdminApproveRestaurants() {
     }
   };
 
+  const handleDeleteRestaurant = async () => {
+    if (!deleteTarget) return;
+    setDeletingRestaurant(true);
+    const { id, name } = deleteTarget;
+
+    try {
+      // 1. Eliminar platillos vinculados al restaurante
+      await supabase.from('dishes').delete().eq('restaurant_id', id);
+      // 2. Eliminar restaurante de users
+      const { error: delErr } = await supabase.from('users').delete().eq('id', id);
+      if (delErr) throw delErr;
+
+      setRestaurants((prev) => prev.filter((r) => r.id !== id));
+      showToast(`Restaurante "${name || 'Restaurante'}" y sus platillos fueron eliminados de la base de datos.`, 'success', 'Restaurante Eliminado');
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('Error al eliminar restaurante:', err);
+      showToast('No se pudo eliminar el restaurante en Supabase.', 'error', 'Error al Eliminar');
+    } finally {
+      setDeletingRestaurant(false);
+    }
+  };
+
   // Filtered restaurants for active tab and search query
+
   const filteredRestaurants = restaurants.filter((r) => {
     const rStatus = r.status || 'approved'; // default to approved if status is null/empty
     if (rStatus !== activeTab) return false;
@@ -257,6 +286,16 @@ function AdminApproveRestaurants() {
                         ↺ Deshacer y Aprobar
                       </button>
                     )}
+
+                    {/* Botón de Eliminación Definitiva (Requisito 10) */}
+                    <button
+                      className="btn-action-reject full-width"
+                      style={{ marginTop: '0.4rem', background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.25)', color: '#f87171' }}
+                      disabled={isUpdating || deletingRestaurant}
+                      onClick={() => setDeleteTarget(restaurant)}
+                    >
+                      🗑️ Eliminar Definitivamente
+                    </button>
                   </div>
                 </div>
               );
@@ -264,6 +303,68 @@ function AdminApproveRestaurants() {
           </div>
         )}
       </main>
+
+      {/* MODAL DE CONFIRMACIÓN DESTRUTIVA PARA ELIMINAR RESTAURANTE (REQUISITO 10) */}
+      {deleteTarget && (
+        <div className="finances-modal-backdrop" onClick={() => !deletingRestaurant && setDeleteTarget(null)}>
+          <div className="danger-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="danger-modal-header">
+              <div className="danger-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div className="danger-modal-title-box">
+                <h3>¿Eliminar Restaurante Definitivamente?</h3>
+                <p>Se borrarán los datos del restaurante y todos sus platillos asociados.</p>
+              </div>
+            </div>
+
+            <div className="danger-target-box">
+              <div className="danger-target-row">
+                <div className="danger-target-avatar">
+                  {deleteTarget.avatar ? (
+                    <img src={deleteTarget.avatar} alt={deleteTarget.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    (deleteTarget.name || 'R').substring(0, 2).toUpperCase()
+                  )}
+                </div>
+                <div className="danger-target-info">
+                  <span className="danger-target-name">{deleteTarget.name || 'Restaurante'}</span>
+                  <span className="danger-target-meta">
+                    {deleteTarget.food_type || 'Restaurante'} • {deleteTarget.email || deleteTarget.phone || 'Sin contacto'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="danger-impact-alert">
+              ⚠️ Esta acción eliminará permanentemente el restaurante de LANDA y su menú completo. No se puede revertir.
+            </div>
+
+            <div className="danger-modal-actions">
+              <button
+                type="button"
+                className="btn-cancel-action"
+                disabled={deletingRestaurant}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                disabled={deletingRestaurant}
+                onClick={handleDeleteRestaurant}
+              >
+                {deletingRestaurant ? 'Eliminando...' : '🗑️ Eliminar Restaurante'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

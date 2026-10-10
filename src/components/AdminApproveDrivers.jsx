@@ -23,6 +23,11 @@ function AdminApproveDrivers() {
   // Modal Image Preview State
   const [previewImage, setPreviewImage] = useState(null);
 
+  // Eliminación definitiva de conductor (Requisito 10)
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingDriver, setDeletingDriver] = useState(false);
+
+
   const loadDrivers = useCallback(async () => {
     setLoading(true);
     try {
@@ -77,7 +82,34 @@ function AdminApproveDrivers() {
     }
   };
 
+  const handleDeleteDriver = async () => {
+    if (!deleteTarget) return;
+    setDeletingDriver(true);
+    const { id, user_id, name } = deleteTarget;
+
+    try {
+      const candidateUserIds = [id, user_id].filter(Boolean);
+      for (const uid of candidateUserIds) {
+        await supabase.from('wallet_transactions').delete().eq('driver_id', uid);
+      }
+      await supabase.from('drivers').delete().or(`id.eq.${id},user_id.eq.${id}`);
+      for (const uid of candidateUserIds) {
+        await supabase.from('users').delete().eq('id', uid);
+      }
+
+      setDrivers((prev) => prev.filter((d) => d.id !== id && d.user_id !== id));
+      showToast(`Conductor "${name || 'Conductor'}" eliminado definitivamente de la base de datos.`, 'success', 'Conductor Eliminado');
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('Error al eliminar conductor:', err);
+      showToast('No se pudo eliminar el conductor de Supabase.', 'error', 'Error al Eliminar');
+    } finally {
+      setDeletingDriver(false);
+    }
+  };
+
   // Filter drivers for active tab and search query
+
   const filteredDrivers = drivers.filter((d) => {
     const dStatus = d.status || 'pending';
     if (dStatus !== activeTab) return false;
@@ -302,6 +334,16 @@ function AdminApproveDrivers() {
                         ↺ Deshacer y Aprobar
                       </button>
                     )}
+
+                    {/* Botón de Eliminación Definitiva (Requisito 10) */}
+                    <button
+                      className="btn-action-reject full-width"
+                      style={{ marginTop: '0.4rem', background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.25)', color: '#f87171' }}
+                      disabled={isUpdating || deletingDriver}
+                      onClick={() => setDeleteTarget(driver)}
+                    >
+                      🗑️ Eliminar Definitivamente
+                    </button>
                   </div>
                 </div>
               );
@@ -320,6 +362,68 @@ function AdminApproveDrivers() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#000', borderRadius: '12px', padding: '0.5rem', maxHeight: '70vh', overflow: 'hidden' }}>
               <img src={previewImage} alt="Documento Conductor" style={{ maxWidth: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '8px' }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DESTRUTIVA PARA ELIMINAR CONDUCTOR (REQUISITO 10) */}
+      {deleteTarget && (
+        <div className="finances-modal-backdrop" onClick={() => !deletingDriver && setDeleteTarget(null)}>
+          <div className="danger-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="danger-modal-header">
+              <div className="danger-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div className="danger-modal-title-box">
+                <h3>¿Eliminar Conductor Definitivamente?</h3>
+                <p>Se borrarán los registros del conductor, vehículo y su billetera operativa.</p>
+              </div>
+            </div>
+
+            <div className="danger-target-box">
+              <div className="danger-target-row">
+                <div className="danger-target-avatar">
+                  {deleteTarget.avatar ? (
+                    <img src={deleteTarget.avatar} alt={deleteTarget.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    (deleteTarget.name || 'C').substring(0, 2).toUpperCase()
+                  )}
+                </div>
+                <div className="danger-target-info">
+                  <span className="danger-target-name">{deleteTarget.name || 'Conductor'}</span>
+                  <span className="danger-target-meta">
+                    Tel: {deleteTarget.phone || 'No registrado'} • C.C: {deleteTarget.cedula || deleteTarget.cc || 'No registrada'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="danger-impact-alert">
+              ⚠️ Esta acción eliminará permanentemente la cuenta de conductor y su acceso a la plataforma. No se puede revertir.
+            </div>
+
+            <div className="danger-modal-actions">
+              <button
+                type="button"
+                className="btn-cancel-action"
+                disabled={deletingDriver}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                disabled={deletingDriver}
+                onClick={handleDeleteDriver}
+              >
+                {deletingDriver ? 'Eliminando...' : '🗑️ Eliminar Conductor'}
+              </button>
             </div>
           </div>
         </div>

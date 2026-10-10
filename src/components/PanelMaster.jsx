@@ -7,8 +7,14 @@ import {
   getTargetUsersWithPushTokens,
   sendExpoPushBatch,
   logBroadcastNotification,
-  getBroadcastHistory
+  getBroadcastHistory,
+  sendPushToSingleUser,
+  deleteBroadcastNotification
 } from '../services/broadcastNotificationService';
+import {
+  analyzeMessageContent,
+  getHighlightedSegments
+} from '../utils/offensiveContentFilter';
 
 // Helper: format time ago (e.g. "hace 5 d", "hace 2 h", "hace 10 min")
 function formatTimeAgo(dateString) {
@@ -50,6 +56,24 @@ function formatDateTime(dateString) {
   } catch (e) {
     return dateString;
   }
+}
+
+// Generador de contraseñas seguras y legibles
+function generateSecurePassword() {
+  const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lowers = 'abcdefghijkmnpqrstuvwxyz';
+  const nums = '23456789';
+  const specials = '!@#$%';
+  const allChars = uppers + lowers + nums + specials;
+  let pass = '';
+  pass += uppers[Math.floor(Math.random() * uppers.length)];
+  pass += lowers[Math.floor(Math.random() * lowers.length)];
+  pass += nums[Math.floor(Math.random() * nums.length)];
+  pass += specials[Math.floor(Math.random() * specials.length)];
+  for (let i = 4; i < 9; i++) {
+    pass += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  return pass.split('').sort(() => 0.5 - Math.random()).join('');
 }
 
 // Helper to parse and normalize order items from JSON string, object, array, or fallback
@@ -187,6 +211,8 @@ function PanelMaster() {
   const [loadingTargetTokens, setLoadingTargetTokens] = useState(false);
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
   const [broadcastHistoryList, setBroadcastHistoryList] = useState([]);
+  const [broadcastToDelete, setBroadcastToDelete] = useState(null);
+  const [deletingBroadcast, setDeletingBroadcast] = useState(false);
 
   // Registered Users Table state
   const [usersList, setUsersList] = useState([]);
@@ -274,7 +300,60 @@ function PanelMaster() {
   const [loadingBonusHistory, setLoadingBonusHistory] = useState(false);
   const [bonusHistorySearchQuery, setBonusHistorySearchQuery] = useState('');
 
+  // -------------------------------------------------------------
+  // REQUISITO 10: Eliminación Segura de Usuario, Conductor, Restaurante y Empleado
+  // -------------------------------------------------------------
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, name, email, role, record }
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // -------------------------------------------------------------
+  // REQUISITO 1: Administrar Puntos de Conductor y Usuario (Modificar o Eliminar)
+  // -------------------------------------------------------------
+  const [isPointsModalOpen, setIsPointsModalOpen] = useState(false);
+  const [pointsTargetUser, setPointsTargetUser] = useState(null);
+  const [pointsOperationType, setPointsOperationType] = useState('add'); // 'add' | 'subtract' | 'set' | 'reset'
+  const [pointsAmountInput, setPointsAmountInput] = useState('');
+  const [pointsReasonInput, setPointsReasonInput] = useState('Recompensa operativa Landa');
+  const [userPointsHistory, setUserPointsHistory] = useState([]);
+  const [loadingUserPointsHistory, setLoadingUserPointsHistory] = useState(false);
+  const [submittingPoints, setSubmittingPoints] = useState(false);
+
+  // -------------------------------------------------------------
+  // REQUISITO 8: Moderación y Bloqueo de Chat Público por Contenido Ofensivo
+  // -------------------------------------------------------------
+  const [publicMessagesList, setPublicMessagesList] = useState([]);
+  const [loadingPublicMessages, setLoadingPublicMessages] = useState(false);
+  const [chatModerationFilter, setChatModerationFilter] = useState('all'); // 'all' | 'flagged' | 'toxic' | 'suspicious' | 'approved' | 'announcements'
+  const [chatSearchQuery, setChatSearchQuery] = useState('');
+  const [approvedMessageIds, setApprovedMessageIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('landa_approved_chat_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+  const [deletingChatMessage, setDeletingChatMessage] = useState(null); // Objeto de mensaje a eliminar
+  const [isDeletingChatMessage, setIsDeletingChatMessage] = useState(false);
+  const [suspendingUserTarget, setSuspendingUserTarget] = useState(null); // { email, name }
+  const [isSuspendingUser, setIsSuspendingUser] = useState(false);
+  const [isAutoModeratingChat, setIsAutoModeratingChat] = useState(false);
+
+  // -------------------------------------------------------------
+  // REQUISITO 6: Modificar Contraseñas de Usuarios y Master
+  // -------------------------------------------------------------
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordTargetUser, setPasswordTargetUser] = useState(null); // { id, name, email, role, isMaster }
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [passwordReasonInput, setPasswordReasonInput] = useState('Restablecimiento administrativo de credenciales');
+  const [notifyPasswordViaPush, setNotifyPasswordViaPush] = useState(true);
+  const [notifyPasswordViaEmail, setNotifyPasswordViaEmail] = useState(true);
+  const [submittingPasswordChange, setSubmittingPasswordChange] = useState(false);
+
   const handleOpenBonusHistoryModal = async () => {
+
     setIsBonusHistoryModalOpen(true);
     setLoadingBonusHistory(true);
     try {
@@ -557,64 +636,32 @@ function PanelMaster() {
       setUsersList(prev => prev.map(u => (u.id === driverUserId || u.id === driverBonusTarget.id) ? { ...u, balance: newBalance } : u));
       setDriversList(prev => prev.map(d => (d.id === driverBonusTarget.id || d.user_id === driverUserId) ? { ...d, balance: newBalance } : d));
 
-      // 5. Enviar Notificación Push al Conductor (mismo flujo que la Difusión Masiva, pero 1 solo destinatario)
+      // 5. Enviar Notificación Push al Conductor de forma directa e inmediata
       let pushDelivered = false;
       let pushFailReason = '';
       try {
-        let driverName = driverBonusTarget.name || 'Conductor';
+        const driverName = driverBonusTarget.name || 'Conductor';
+        const notifTitle = '🎉 ¡Bono de Viajes Acreditado!';
+        const notifBody = (bonusOperationType === 'add'
+          ? `Hola ${driverName}, se han sumado ${formatCOP(amountNum)} a tu billetera. Saldo disponible: ${formatCOP(newBalance)}.`
+          : `Hola ${driverName}, tu saldo operativo fue actualizado a ${formatCOP(newBalance)}.`) + (reason ? ` Motivo: ${reason}` : '');
 
-        // Misma consulta que usa la difusión masiva (ya probada en producción)
-        const { allUsers, usersWithToken } = await getTargetUsersWithPushTokens('all');
-        const candidateIds = [driverUserId, driverBonusTarget.id, driverBonusTarget.user_id].filter(Boolean).map(String);
-        const matchFn = (u) => candidateIds.includes(String(u.id)) ||
-          (driverBonusTarget.email && u.email && u.email.toLowerCase() === driverBonusTarget.email.toLowerCase());
-
-        const targetUser = (usersWithToken || []).find(matchFn);
-        const anyUser = targetUser || (allUsers || []).find(matchFn);
-        if (anyUser?.name) driverName = anyUser.name;
-
-        const driverToken = targetUser?.push_token || null;
-        console.log('[DriverBonus] Usuario encontrado:', anyUser?.id, '| token:', driverToken || anyUser?.push_token || 'NINGUNO');
-
-        if (driverToken) {
-          const notifTitle = '🎉 ¡Bono de Viajes Acreditado!';
-          const notifBody = (bonusOperationType === 'add'
-            ? `Hola ${driverName}, se han sumado ${formatCOP(amountNum)} a tu billetera. Saldo disponible: ${formatCOP(newBalance)}.`
-            : `Hola ${driverName}, tu saldo operativo fue actualizado a ${formatCOP(newBalance)}.`) + (reason ? ` Motivo: ${reason}` : '');
-
-          // Mismo payload/estructura que la difusión masiva (type broadcast_notice => la app lo muestra como notificación normal)
-          const pushResult = await sendExpoPushBatch([driverToken], {
+        const pushResult = await sendPushToSingleUser(
+          { id: driverUserId || driverBonusTarget.id, email: driverBonusTarget.email },
+          {
             title: notifTitle,
             body: notifBody,
-            channelId: 'default',
-            priority: 'high',
-            sound: 'default',
-            badge: 1,
-            data: {
-              type: 'broadcast_notice',
-              broadcast_id: `bonus-${Date.now()}`,
-              broadcast_type: 'notice',
-              target_role: 'driver',
-              title: notifTitle,
-              body: notifBody,
+            extraData: {
               bonus: true,
               new_balance: newBalance,
               amount: amountNum,
+              driver_id: driverUserId || driverBonusTarget.id,
             }
-          });
-
-          const ticket = pushResult?.tickets?.[0];
-          console.log('[DriverBonus] Ticket Expo:', ticket);
-          if (ticket?.status === 'ok') {
-            pushDelivered = true;
-          } else {
-            pushFailReason = ticket?.details?.error || ticket?.message || (pushResult?.errors || []).join(', ') || 'Respuesta inválida de Expo';
           }
-        } else {
-          pushFailReason = anyUser?.push_token
-            ? `Token con formato inválido: ${String(anyUser.push_token).slice(0, 25)}…`
-            : 'El conductor no tiene push_token registrado (debe abrir la app y aceptar notificaciones)';
-        }
+        );
+
+        pushDelivered = pushResult.delivered;
+        pushFailReason = pushResult.reason || '';
       } catch (pushErr) {
         console.warn('Advertencia al enviar push notification al conductor:', pushErr);
         pushFailReason = pushErr.message || 'Error desconocido';
@@ -634,7 +681,541 @@ function PanelMaster() {
     }
   };
 
+  // -------------------------------------------------------------
+  // REQUISITO 10: LÓGICA DE ELIMINACIÓN DE CUENTAS POR ROL
+  // -------------------------------------------------------------
+  const handleRequestDelete = (item, role) => {
+    const rawRole = (role || item.role || 'client').toLowerCase();
+    const displayName = getUserFullName(item);
+    setDeleteTarget({
+      id: item.id,
+      name: displayName,
+      email: item.email || item.phone || 'Sin correo',
+      role: rawRole,
+      record: item
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingAccount(true);
+    const { id, name, role, record } = deleteTarget;
+    const cleanRole = (role || 'client').toLowerCase();
+
+    try {
+      // 1. ELIMINACIÓN SEGÚN EL ROL
+      if (cleanRole === 'restaurant') {
+        // Purgar platos vinculados al restaurante en Supabase
+        await supabase.from('dishes').delete().eq('restaurant_id', id);
+        // Borrar usuario en users
+        const { error: restErr } = await supabase.from('users').delete().eq('id', id);
+        if (restErr) throw restErr;
+      } else if (cleanRole === 'driver' || cleanRole === 'conductor') {
+        // Encontrar posibles user_id asociados
+        const candidateUserIds = [id, record?.user_id].filter(Boolean);
+        // Purgar movimientos de billetera
+        for (const uid of candidateUserIds) {
+          await supabase.from('wallet_transactions').delete().eq('driver_id', uid);
+        }
+        // Borrar en tabla 'drivers'
+        await supabase.from('drivers').delete().or(`id.eq.${id},user_id.eq.${id}`);
+        // Borrar en tabla 'users'
+        for (const uid of candidateUserIds) {
+          await supabase.from('users').delete().eq('id', uid);
+        }
+      } else if (cleanRole === 'employee') {
+        // Borrar en tabla 'empleado'
+        const candidateEmails = [record?.email, deleteTarget.email].filter(Boolean);
+        for (const em of candidateEmails) {
+          await supabase.from('empleado').delete().or(`id.eq.${id},email.eq.${em}`);
+        }
+        // Borrar en tabla 'users'
+        await supabase.from('users').delete().or(`id.eq.${id}${candidateEmails.length ? `,email.eq.${candidateEmails[0]}` : ''}`);
+        // Purgar de registros de auditoría locales si aplica
+        try {
+          const storedLogins = JSON.parse(localStorage.getItem('landa_employee_logins_history') || '[]');
+          const updatedLogins = storedLogins.filter(l => l.email !== record?.email && l.name !== name);
+          localStorage.setItem('landa_employee_logins_history', JSON.stringify(updatedLogins));
+          setEmployeeLoginsList(prev => prev.filter(l => l.email !== record?.email && l.name !== name));
+        } catch (storageErr) {
+          console.warn('Notice updating local employee storage:', storageErr);
+        }
+      } else {
+        // Cliente o usuario general
+        // Borrar publicaciones vinculadas en 'posts'
+        await supabase.from('posts').delete().or(`user_id.eq.${id},user_email.eq.${record?.email || id}`);
+        // Borrar en tabla 'users'
+        const { error: userErr } = await supabase.from('users').delete().eq('id', id);
+        if (userErr) throw userErr;
+      }
+
+      // 2. ACTUALIZAR ESTADOS EN CALIENTE
+      setUsersList(prev => prev.filter(u => u.id !== id && u.email !== record?.email));
+      setDriversList(prev => prev.filter(d => d.id !== id && d.user_id !== id));
+      setEmployeesList(prev => prev.filter(e => e.id !== id && e.email !== record?.email));
+      setUserCount(prev => Math.max(0, prev - 1));
+
+      // Si el modal de perfil de este usuario estaba abierto, cerrarlo
+      if (selectedUserProfile && (selectedUserProfile.id === id || selectedUserProfile.email === record?.email)) {
+        setSelectedUserProfile(null);
+      }
+
+      const roleLabels = {
+        client: 'Cliente',
+        driver: 'Conductor',
+        conductor: 'Conductor',
+        restaurant: 'Restaurante',
+        employee: 'Empleado',
+        admin: 'Administrador'
+      };
+
+      showToast(
+        `Se eliminó exitosamente a "${name}" (${roleLabels[cleanRole] || 'Usuario'}) de la base de datos de LANDA.`,
+        'success',
+        'Cuenta Eliminada'
+      );
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      showToast(
+        `No se pudo eliminar la cuenta: ${err.message || 'Error de conexión con la base de datos'}`,
+        'error',
+        'Error al Eliminar'
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // REQUISITO 1: LÓGICA DE ADMINISTRACIÓN DE PUNTOS (MODIFICAR O ELIMINAR)
+  // -------------------------------------------------------------
+  const handleOpenPointsModal = async (targetUser) => {
+    if (!targetUser) return;
+    const currentPoints = Number(targetUser.points) || 0;
+    const isDriver = targetUser.role === 'driver' || targetUser.role === 'conductor';
+
+    setPointsTargetUser({
+      ...targetUser,
+      currentPoints,
+      displayName: getUserFullName(targetUser),
+      isDriver
+    });
+    setPointsOperationType('add');
+    setPointsAmountInput('');
+    setPointsReasonInput(isDriver ? 'Bono de puntos por desempeño' : 'Recompensa de fidelidad');
+    setUserPointsHistory([]);
+    setIsPointsModalOpen(true);
+    setLoadingUserPointsHistory(true);
+
+    try {
+      // Consultar historial de puntos en points_transactions
+      const { data: ptsData, error: ptsErr } = await supabase
+        .from('points_transactions')
+        .select('*')
+        .eq('user_id', targetUser.id)
+        .order('created_at', { ascending: false })
+        .limit(15);
+
+      if (!ptsErr && ptsData) {
+        setUserPointsHistory(ptsData);
+      }
+    } catch (e) {
+      console.warn('Notice loading points history:', e);
+    } finally {
+      setLoadingUserPointsHistory(false);
+    }
+  };
+
+  const handleApplyPointsChange = async () => {
+    if (!pointsTargetUser) return;
+    const currentPts = Number(pointsTargetUser.currentPoints) || 0;
+    let newPts = currentPts;
+    let transactionAmount = 0;
+    let transactionType = 'earned';
+    const amountVal = Math.max(0, parseInt(pointsAmountInput, 10) || 0);
+
+    if (pointsOperationType === 'add') {
+      if (amountVal <= 0) {
+        showToast('Por favor ingresa una cantidad de puntos válida a sumar.', 'warning', 'Puntos Inválidos');
+        return;
+      }
+      newPts = currentPts + amountVal;
+      transactionAmount = amountVal;
+      transactionType = 'earned';
+    } else if (pointsOperationType === 'subtract') {
+      if (amountVal <= 0) {
+        showToast('Por favor ingresa una cantidad de puntos válida a restar.', 'warning', 'Puntos Inválidos');
+        return;
+      }
+      newPts = Math.max(0, currentPts - amountVal);
+      transactionAmount = -amountVal;
+      transactionType = 'redeemed';
+    } else if (pointsOperationType === 'set') {
+      if (isNaN(amountVal) || amountVal < 0) {
+        showToast('Por favor ingresa un valor de puntos válido.', 'warning', 'Puntos Inválidos');
+        return;
+      }
+      newPts = amountVal;
+      transactionAmount = newPts - currentPts;
+      transactionType = transactionAmount >= 0 ? 'earned' : 'redeemed';
+    } else if (pointsOperationType === 'reset') {
+      // Eliminar / Resetear puntos a 0
+      newPts = 0;
+      transactionAmount = -currentPts;
+      transactionType = 'redeemed';
+    }
+
+    setSubmittingPoints(true);
+    const userId = pointsTargetUser.id;
+    const reason = pointsReasonInput.trim() || (pointsOperationType === 'reset' ? 'Eliminación / reseteo de puntos por administración' : 'Ajuste de puntos por administración');
+
+    try {
+      // 1. Actualizar balance de puntos en tabla 'users'
+      const { error: userErr } = await supabase
+        .from('users')
+        .update({ points: newPts })
+        .eq('id', userId);
+
+      if (userErr) throw userErr;
+
+      // 1.1 Sincronización en tiempo real según el rol del usuario (Cliente, Restaurante, Conductor, Empleado)
+      // Activa los listeners nativos de Supabase Realtime que tiene cada tipo de cuenta en la app física
+      const userRole = (pointsTargetUser.role || 'client').toLowerCase();
+      try {
+        // Disparar evento en 'posts' para usuarios con publicaciones (activa el refresco de Perfil en tiempo real)
+        await supabase
+          .from('posts')
+          .update({
+            user_name: pointsTargetUser.displayName || pointsTargetUser.name || 'Usuario LANDA'
+          })
+          .or(`user_id.eq.${userId},user_email.eq.${pointsTargetUser.email || userId}`);
+      } catch (postsSyncErr) {
+        console.warn('Notice syncing posts for realtime profile update:', postsSyncErr);
+      }
+
+      try {
+        if (userRole === 'driver' || userRole === 'conductor') {
+          // Conductor: emitir evento en tabla 'drivers' (igual que el bono de billetera)
+          const candidateDriverId = pointsTargetUser.driver_id || pointsTargetUser.id;
+          await supabase
+            .from('drivers')
+            .update({ status: pointsTargetUser.status || 'approved' })
+            .or(`user_id.eq.${userId},id.eq.${candidateDriverId}`);
+        } else if (userRole === 'restaurant') {
+          // Restaurante: emitir evento en tabla 'dishes' vinculada para activar realtime del restaurante
+          await supabase
+            .from('dishes')
+            .update({ available: true })
+            .eq('restaurant_id', userId)
+            .limit(1);
+        } else if (userRole === 'employee') {
+          // Empleado: emitir evento en tabla 'empleado'
+          await supabase
+            .from('empleado')
+            .update({ role: 'employee' })
+            .or(`id.eq.${userId},email.eq.${pointsTargetUser.email || userId}`);
+        }
+      } catch (roleSyncErr) {
+        console.warn('Notice syncing role table for realtime points:', roleSyncErr);
+      }
+
+      // 2. Registrar auditoría en 'points_transactions'
+      try {
+        await supabase
+          .from('points_transactions')
+          .insert([{
+            user_id: userId,
+            amount: transactionAmount,
+            type: transactionType,
+            description: reason
+          }]);
+      } catch (txErr) {
+        console.warn('Notice saving points transaction audit:', txErr);
+      }
+
+      // 2.1 Emitir señal de actualización instantánea multi-canal y multi-evento por Supabase Realtime Broadcast
+      const realtimeChannels = [
+        `dashboard-users-realtime`,
+        `user-${userId}`,
+        `user_${userId}`,
+        `user:${userId}`,
+        `points-${userId}`,
+        `points_${userId}`,
+        `profile-${userId}`,
+        `profile_${userId}`,
+        `landa-user-${userId}`,
+        pointsTargetUser.email ? `user-${pointsTargetUser.email}` : null,
+        pointsTargetUser.email ? `user:${pointsTargetUser.email}` : null,
+        pointsTargetUser.email ? `profile-${pointsTargetUser.email}` : null,
+        pointsTargetUser.email ? `points-${pointsTargetUser.email}` : null,
+      ].filter(Boolean);
+
+      for (const chName of realtimeChannels) {
+        try {
+          const ch = supabase.channel(chName);
+          ch.subscribe((st) => {
+            if (st === 'SUBSCRIBED') {
+              const eventPayload = {
+                user_id: userId,
+                userId: userId,
+                email: pointsTargetUser.email,
+                points: newPts,
+                new_points: newPts,
+                user_points: newPts,
+                points_balance: newPts,
+                balance: newPts,
+                previous_points: currentPts,
+                delta: transactionAmount,
+                amount: transactionAmount,
+                operation: pointsOperationType,
+                role: userRole,
+                updated_at: new Date().toISOString()
+              };
+              Promise.all([
+                ch.send({ type: 'broadcast', event: 'points_updated', payload: eventPayload }),
+                ch.send({ type: 'broadcast', event: 'user_updated', payload: eventPayload }),
+                ch.send({ type: 'broadcast', event: 'profile_updated', payload: eventPayload }),
+                ch.send({ type: 'broadcast', event: 'points_update', payload: eventPayload })
+              ]).finally(() => {
+                setTimeout(() => {
+                  try { supabase.removeChannel(ch); } catch (_) {}
+                }, 2500);
+              });
+            }
+          });
+        } catch (_) {}
+      }
+
+      // 3. Actualizar estados locales de UI en caliente
+      setUsersList(prev => prev.map(u => u.id === userId ? { ...u, points: newPts } : u));
+      if (selectedUserProfile && selectedUserProfile.id === userId) {
+        setSelectedUserProfile(prev => ({ ...prev, points: newPts }));
+      }
+      setPointsTargetUser(prev => prev ? { ...prev, currentPoints: newPts, points: newPts } : null);
+
+      // 4. ENVIAR NOTIFICACIÓN PUSH INMEDIATAMENTE AL TELÉFONO DEL USUARIO MODIFICADO
+      // (Usa la misma infraestructura y estructura de payload que la Difusión Push masiva)
+      let pushDelivered = false;
+      let pushFailReason = '';
+      try {
+        const recipientName = pointsTargetUser.displayName || 'Usuario';
+        let notifTitle = '★ ¡Tus Puntos Landa se han actualizado!';
+        let notifBody = `Hola ${recipientName}, tu balance de Puntos Landa ahora es de ${newPts.toLocaleString()} pts.`;
+
+        if (pointsOperationType === 'add') {
+          notifTitle = '🎉 ¡Has recibido nuevos Puntos Landa!';
+          notifBody = `¡Felicidades ${recipientName}! Se han sumado +${amountVal.toLocaleString()} pts a tu cuenta (${reason}). Saldo disponible: ${newPts.toLocaleString()} pts.`;
+        } else if (pointsOperationType === 'subtract') {
+          notifTitle = '★ Actualización de Puntos Landa';
+          notifBody = `Hola ${recipientName}, se han deducido -${amountVal.toLocaleString()} pts de tu cuenta (${reason}). Saldo actual: ${newPts.toLocaleString()} pts.`;
+        } else if (pointsOperationType === 'reset') {
+          notifTitle = '★ Saldo de Puntos Actualizado';
+          notifBody = `Hola ${recipientName}, tu balance de Puntos Landa fue restablecido a 0 pts (${reason}).`;
+        }
+
+        const pushResult = await sendPushToSingleUser(
+          { id: userId, email: pointsTargetUser.email },
+          {
+            title: notifTitle,
+            body: notifBody,
+            extraData: {
+              type: 'points_update',
+              action: 'points_update',
+              event: 'points_updated',
+              notification_type: 'points_update',
+              points_update: true,
+              user_id: userId,
+              userId: userId,
+              email: pointsTargetUser.email,
+              user_email: pointsTargetUser.email,
+              points: newPts,
+              new_points: newPts,
+              user_points: newPts,
+              points_balance: newPts,
+              balance: newPts,
+              previous_points: currentPts,
+              delta: transactionAmount,
+              amount: transactionAmount,
+              operation: pointsOperationType,
+              reason: reason,
+              role: userRole,
+            }
+          }
+        );
+
+        pushDelivered = pushResult.delivered;
+        pushFailReason = pushResult.reason || '';
+      } catch (pushErr) {
+        console.warn('Advertencia al enviar push notification de puntos:', pushErr);
+        pushFailReason = pushErr.message || 'Error desconocido';
+      }
+
+      if (pushDelivered) {
+        showToast(
+          `Puntos actualizados (${newPts.toLocaleString()} pts) y enviados de inmediato al teléfono de ${pointsTargetUser.displayName} 📲`,
+          'success',
+          'Puntos en Teléfono'
+        );
+      } else {
+        showToast(
+          `Puntos actualizados (${newPts.toLocaleString()} pts) en BD. (Notif push: ${pushFailReason})`,
+          'warning',
+          'Puntos Actualizados'
+        );
+      }
+      setIsPointsModalOpen(false);
+    } catch (err) {
+      console.error('Error updating points:', err);
+      showToast('No se pudieron actualizar los puntos en la base de datos.', 'error', 'Error al Guardar');
+    } finally {
+      setSubmittingPoints(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // REQUISITO 6: FUNCIONES DE MODIFICACIÓN DE CONTRASEÑAS (USUARIOS Y MASTER)
+  // -------------------------------------------------------------
+  const handleOpenPasswordModal = (targetUser, isMasterAccount = false) => {
+    const isMaster = isMasterAccount || targetUser?.role === 'master' || targetUser?.role === 'admin';
+    const displayName = isMasterAccount ? 'Administrador Master' : getUserFullName(targetUser);
+    setPasswordTargetUser({
+      id: isMasterAccount ? 'master-self' : targetUser?.id,
+      email: isMasterAccount ? (currentUser?.email || 'master@landa.com') : (targetUser?.email || ''),
+      name: displayName,
+      role: isMaster ? 'master' : (targetUser?.role || 'client'),
+      avatar: isMasterAccount ? null : targetUser?.avatar,
+      isMaster: isMaster,
+      rawUser: targetUser
+    });
+    setNewPasswordInput('');
+    setConfirmPasswordInput('');
+    setShowPasswordText(false);
+    setPasswordReasonInput('Restablecimiento administrativo de credenciales');
+    setNotifyPasswordViaPush(true);
+    setNotifyPasswordViaEmail(true);
+    setIsPasswordModalOpen(true);
+  };
+
+  const handleApplyPasswordChange = async () => {
+    if (!passwordTargetUser) return;
+    const cleanPass = newPasswordInput.trim();
+    const cleanConfirm = confirmPasswordInput.trim();
+
+    if (!cleanPass) {
+      showToast('Por favor escribe la nueva contraseña.', 'warning', 'Contraseña Requerida');
+      return;
+    }
+    if (cleanPass.length < 6) {
+      showToast('La contraseña debe tener al menos 6 caracteres.', 'warning', 'Contraseña Muy Corta');
+      return;
+    }
+    if (cleanPass !== cleanConfirm) {
+      showToast('Las contraseñas no coinciden. Por favor verifícalas.', 'warning', 'No Coinciden');
+      return;
+    }
+
+    setSubmittingPasswordChange(true);
+    try {
+      if (passwordTargetUser.isMaster) {
+        // 1. Modificar la contraseña de la propia cuenta Master en Supabase Auth
+        const { error: authErr } = await supabase.auth.updateUser({
+          password: cleanPass
+        });
+        if (authErr) throw authErr;
+
+        showToast(
+          '¡Tu contraseña de Administrador Master ha sido actualizada exitosamente en Supabase Auth! 🔐',
+          'success',
+          'Contraseña Actualizada'
+        );
+      } else {
+        // 2. Modificar credenciales de usuario (Cliente, Conductor, Restaurante, Empleado)
+        // Ejecución directa en Supabase Auth mediante la función de alta seguridad
+        let targetAuthId = passwordTargetUser.id;
+        if (!targetAuthId || passwordTargetUser.rawUser?.user_id) {
+          targetAuthId = passwordTargetUser.rawUser?.user_id || targetAuthId;
+        }
+
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_set_user_password', {
+          target_user_id: targetAuthId,
+          new_password: cleanPass
+        });
+
+        if (rpcErr) {
+          console.error('Error executing admin_set_user_password RPC:', rpcErr);
+          throw new Error('Error en el servidor de autenticación: ' + (rpcErr.message || 'No se pudo actualizar'));
+        }
+
+        if (rpcRes && rpcRes.success === false) {
+          throw new Error(rpcRes.message || 'No se pudo actualizar la contraseña');
+        }
+
+        const targetEmail = (passwordTargetUser.email || '').toLowerCase().trim();
+        let emailSent = false;
+        let pushSent = false;
+
+        // Vía A: Disparar correo oficial de recuperación si la opción está activa
+        if (notifyPasswordViaEmail && targetEmail) {
+          try {
+            const { error: resetErr } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+              redirectTo: window.location.origin + '/master'
+            });
+            if (!resetErr) emailSent = true;
+          } catch (mailErr) {
+            console.warn('Notice sending reset password email:', mailErr);
+          }
+        }
+
+        // Vía B: Despachar credencial y aviso oficial al teléfono móvil vía Push y Chat Privado
+        if (notifyPasswordViaPush && (passwordTargetUser.id || targetEmail)) {
+          try {
+            const notifTitle = '🔐 Actualización de Contraseña de Acceso';
+            const notifBody = `Hola ${passwordTargetUser.name}, tu contraseña de acceso a LANDA ha sido actualizada por la administración a: "${cleanPass}". Puedes iniciar sesión con tus nuevas credenciales.`;
+
+            const pushRes = await sendPushToSingleUser(
+              { id: passwordTargetUser.id, email: targetEmail },
+              {
+                title: notifTitle,
+                body: notifBody,
+                extraData: {
+                  type: 'password_update',
+                  action: 'password_update',
+                  event: 'password_updated',
+                  user_id: passwordTargetUser.id,
+                  email: targetEmail,
+                  temporary_password: cleanPass
+                }
+              }
+            );
+            if (pushRes.delivered) pushSent = true;
+          } catch (pushErr) {
+            console.warn('Notice sending password push notification:', pushErr);
+          }
+        }
+
+        // Mensaje de éxito descriptivo
+        let deliveryMsg = `¡Contraseña actualizada con éxito en la base de datos para ${passwordTargetUser.name}!`;
+        if (pushSent) deliveryMsg += ' 📲 Notificación enviada al teléfono.';
+        if (emailSent) deliveryMsg += ' ✉️ Correo despachado.';
+
+        showToast(deliveryMsg, 'success', '🔐 Contraseña Modificada');
+      }
+
+      setIsPasswordModalOpen(false);
+    } catch (err) {
+      console.error('Error changing password:', err);
+      let errMsg = err.message || 'Error al actualizar la contraseña.';
+      if (errMsg.includes('same_password')) errMsg = 'La nueva contraseña no puede ser igual a la anterior.';
+      showToast(errMsg, 'error', 'Error de Contraseña');
+    } finally {
+      setSubmittingPasswordChange(false);
+    }
+  };
+
   const [lastUpdated, setLastUpdated] = useState('10:30 a. m.');
+
+
 
   // Greeting based on current time
   const getGreeting = () => {
@@ -1198,9 +1779,188 @@ function PanelMaster() {
     }
   }, []);
 
-  useEffect(() => {
-    refreshBroadcastHistory();
-  }, [refreshBroadcastHistory]);
+  // Función: Eliminar difusión del historial y de public_messages
+  const handleConfirmDeleteBroadcast = async () => {
+    if (!broadcastToDelete) return;
+    setDeletingBroadcast(true);
+    try {
+      await deleteBroadcastNotification(broadcastToDelete);
+      setBroadcastHistoryList((prev) =>
+        prev.filter((item) => {
+          if (item.id === broadcastToDelete.id) return false;
+          if (broadcastToDelete.created_at && item.created_at === broadcastToDelete.created_at) return false;
+          return true;
+        })
+      );
+      showToast('La difusión ha sido eliminada del historial y del sistema.', 'success', 'Difusión Eliminada');
+      setBroadcastToDelete(null);
+    } catch (err) {
+      console.error('Error eliminando difusión:', err);
+      showToast('Ocurrió un error al intentar eliminar la difusión.', 'error', 'Error');
+    } finally {
+      setDeletingBroadcast(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // FUNCIONES DE MODERACIÓN DE CHAT PÚBLICO (REQUISITO 8)
+  // -------------------------------------------------------------
+  const fetchPublicMessages = useCallback(async () => {
+    setLoadingPublicMessages(true);
+    try {
+      const { data, error } = await supabase
+        .from('public_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+
+      // Analizar cada mensaje con el motor heurístico
+      const analyzed = (data || []).map((msg) => {
+        const isOfficial = msg.from_email === 'master@landa.com' || msg.media_type === 'announcement';
+        const analysis = isOfficial
+          ? { level: 'safe', score: 0, matchedWords: [], reason: 'Anuncio oficial LANDA Master' }
+          : analyzeMessageContent(msg.text);
+
+        return {
+          ...msg,
+          analysis,
+          isOfficial,
+          isApproved: approvedMessageIds.includes(msg.id) || isOfficial
+        };
+      });
+
+      setPublicMessagesList(analyzed);
+    } catch (err) {
+      console.warn('Error fetching public messages:', err);
+    } finally {
+      setLoadingPublicMessages(false);
+    }
+  }, [approvedMessageIds]);
+
+  // Aprobar mensaje público (elimina alertas y marca como verificado)
+  const handleApproveChatMessage = (msgId) => {
+    try {
+      setApprovedMessageIds((prev) => {
+        const updated = [...new Set([...prev, msgId])];
+        try {
+          localStorage.setItem('landa_approved_chat_ids', JSON.stringify(updated));
+        } catch (_) {}
+        return updated;
+      });
+
+      setPublicMessagesList((prev) =>
+        prev.map((m) => (m.id === msgId ? { ...m, isApproved: true } : m))
+      );
+
+      showToast('El mensaje ha sido aprobado y verificado como seguro.', 'success', 'Mensaje Aprobado');
+    } catch (err) {
+      console.error('Error approving chat message:', err);
+    }
+  };
+
+  // Bloquear y eliminar mensaje ofensivo de Supabase public_messages (Realtime lo borra en caliente de apps)
+  const handleConfirmDeleteChatMessage = async () => {
+    if (!deletingChatMessage) return;
+    setIsDeletingChatMessage(true);
+    try {
+      const { error } = await supabase
+        .from('public_messages')
+        .delete()
+        .eq('id', deletingChatMessage.id);
+
+      if (error) throw error;
+
+      setPublicMessagesList((prev) => prev.filter((m) => m.id !== deletingChatMessage.id));
+
+      showToast(
+        'Mensaje bloqueado y eliminado exitosamente del chat público en tiempo real.',
+        'success',
+        '🚫 Mensaje Bloqueado'
+      );
+      setDeletingChatMessage(null);
+    } catch (err) {
+      console.error('Error deleting public chat message:', err);
+      showToast('No se pudo eliminar el mensaje del chat público.', 'error', 'Error');
+    } finally {
+      setIsDeletingChatMessage(false);
+    }
+  };
+
+  // Suspender usuario emisor por contenido ofensivo
+  const handleConfirmSuspendUser = async () => {
+    if (!suspendingUserTarget) return;
+    setIsSuspendingUser(true);
+    try {
+      const targetEmail = suspendingUserTarget.email;
+      if (targetEmail) {
+        const { error } = await supabase
+          .from('users')
+          .update({ status: 'suspended' })
+          .ilike('email', targetEmail);
+
+        if (error) throw error;
+
+        // Actualizar en lista local de usuarios
+        setUsersList((prev) =>
+          prev.map((u) => (u.email?.toLowerCase() === targetEmail.toLowerCase() ? { ...u, status: 'suspended' } : u))
+        );
+
+        showToast(
+          `La cuenta de ${suspendingUserTarget.name || targetEmail} ha sido suspendida por infracción de contenido ofensivo.`,
+          'warning',
+          '⛔ Usuario Suspendido'
+        );
+      }
+      setSuspendingUserTarget(null);
+    } catch (err) {
+      console.error('Error suspending user:', err);
+      showToast('Error al suspender el usuario en Supabase.', 'error', 'Error');
+    } finally {
+      setIsSuspendingUser(false);
+    }
+  };
+
+  // Auto-moderación masiva (elimina todos los mensajes calificados como tóxicos no oficiales)
+  const handleAutoModerateChat = async () => {
+    const toxicMessages = publicMessagesList.filter(
+      (m) => !m.isOfficial && !m.isApproved && m.analysis?.level === 'toxic'
+    );
+
+    if (toxicMessages.length === 0) {
+      showToast('No se encontraron mensajes tóxicos o altamente ofensivos pendientes.', 'info', 'Chat Limpio');
+      return;
+    }
+
+    if (!window.confirm(`¿Deseas bloquear y purgar automáticamente ${toxicMessages.length} mensaje(s) con lenguaje ofensivo detectado?`)) {
+      return;
+    }
+
+    setIsAutoModeratingChat(true);
+    let deletedCount = 0;
+    try {
+      for (const msg of toxicMessages) {
+        const { error } = await supabase.from('public_messages').delete().eq('id', msg.id);
+        if (!error) deletedCount++;
+      }
+
+      setPublicMessagesList((prev) =>
+        prev.filter((m) => !toxicMessages.some((tm) => tm.id === m.id))
+      );
+
+      showToast(
+        `Se han bloqueado y purgado ${deletedCount} mensajes con contenido ofensivo del chat público.`,
+        'success',
+        '🤖 Auto-Moderación Completada'
+      );
+    } catch (err) {
+      console.error('Error auto moderating chat:', err);
+      showToast('Ocurrió un error durante la auto-moderación.', 'error', 'Error');
+    } finally {
+      setIsAutoModeratingChat(false);
+    }
+  };
 
   // Función principal: Enviar difusión masiva a todos los usuarios reales en tiempo real
   const handleSendBroadcast = async () => {
@@ -1301,6 +2061,8 @@ function PanelMaster() {
   // Real-time subscriptions setup
   useEffect(() => {
     loadMetrics();
+    refreshBroadcastHistory();
+    fetchPublicMessages();
 
     const usersChannel = supabase
       .channel('dashboard-users-realtime')
@@ -1339,14 +2101,32 @@ function PanelMaster() {
       })
       .subscribe();
 
+    const publicMessagesChannel = supabase
+      .channel('dashboard-public-messages-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'public_messages' }, () => {
+        fetchPublicMessages();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(driversChannel);
       supabase.removeChannel(ridesChannel);
       supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(publicMessagesChannel);
     };
-  }, [broadcastTarget, loadTargetAudienceTokens]);
+  }, [broadcastTarget, loadTargetAudienceTokens, refreshBroadcastHistory, fetchPublicMessages]);
+
+  // Refrescar historial cuando el Master ingresa a notificaciones o moderación de chat
+  useEffect(() => {
+    if (activeTab === 'notifications' || activeTab === 'broadcast') {
+      refreshBroadcastHistory();
+    }
+    if (activeTab === 'public_chat') {
+      fetchPublicMessages();
+    }
+  }, [activeTab, refreshBroadcastHistory, fetchPublicMessages]);
 
   const handleLogout = async () => {
     try {
@@ -1543,6 +2323,18 @@ function PanelMaster() {
               </svg>
             </button>
 
+            <button 
+              className="master-icon-btn" 
+              onClick={() => handleOpenPasswordModal(currentUser, true)} 
+              title="Cambiar Mi Contraseña Master (Seguridad)"
+              style={{ color: '#a5b4fc' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </button>
+
             <button className="master-logout-btn" onClick={handleLogout} title="Cerrar Sesión Master">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -1664,6 +2456,27 @@ function PanelMaster() {
               </span>
               <span>Enviar Difusión</span>
               <span className="pulse-live-tag" style={{ background: 'linear-gradient(135deg, #2563eb, #06b6d4)' }}>● PUSH</span>
+            </button>
+
+            <button
+              className={`master-tab-btn ${activeTab === 'public_chat' ? 'active' : ''}`}
+              onClick={() => setActiveTab('public_chat')}
+            >
+              <span className="tab-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  <path d="M12 7v4" />
+                  <line x1="12" y1="15" x2="12.01" y2="15" />
+                </svg>
+              </span>
+              <span>Moderar Chat Público</span>
+              {publicMessagesList.some((m) => !m.isApproved && !m.isOfficial && m.analysis?.level === 'toxic') ? (
+                <span className="tab-pill" style={{ background: '#ef4444', color: '#ffffff', fontWeight: '800' }}>
+                  ⚠️ {publicMessagesList.filter((m) => !m.isApproved && !m.isOfficial && m.analysis?.level === 'toxic').length}
+                </span>
+              ) : (
+                <span className="tab-pill">{publicMessagesList.length}</span>
+              )}
             </button>
           </div>
         </section>
@@ -1810,6 +2623,21 @@ function PanelMaster() {
                     </svg>
                   </div>
                   <span style={{ fontWeight: '700', color: '#38bdf8' }}>Enviar Difusión Push</span>
+                </button>
+
+                <button
+                  className="quick-action-card"
+                  onClick={() => setActiveTab('public_chat')}
+                  style={{ border: '1px solid rgba(239, 68, 68, 0.4)' }}
+                >
+                  <div className="action-icon-box" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                    </svg>
+                  </div>
+                  <span style={{ fontWeight: '700', color: '#f87171' }}>Moderar Chat Público</span>
                 </button>
 
                 <button className="quick-action-card" onClick={() => setActiveTab('restaurants')}>
@@ -1969,7 +2797,7 @@ function PanelMaster() {
                         <th>PUNTOS</th>
                         <th>ESTADO</th>
                         <th>CIUDAD</th>
-                        <th>PERFIL Y PUBLICACIONES</th>
+                        <th>ACCIONES</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2015,7 +2843,18 @@ function PanelMaster() {
                                 </span>
                               </td>
                               <td>
-                                <span className="points-val">{pointsVal} pts</span>
+                                <button
+                                  type="button"
+                                  className="points-interactive-badge"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenPointsModal(u);
+                                  }}
+                                  title="Gestionar, modificar o eliminar puntos de este usuario"
+                                >
+                                  <span>★ {pointsVal} pts</span>
+                                  <span className="points-edit-icon">✏️</span>
+                                </button>
                               </td>
                               <td>
                                 <span className={`status-pill ${isApproved ? 'green' : 'pending'}`}>
@@ -2026,15 +2865,38 @@ function PanelMaster() {
                                 <span className="city-val">{u.city || 'Colombia'}</span>
                               </td>
                               <td>
-                                <button
-                                  className="action-view-btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenUserProfile(u);
-                                  }}
-                                >
-                                  Ver Perfil
-                                </button>
+                                <div className="action-buttons-cell-group">
+                                  <button
+                                    className="action-view-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenUserProfile(u);
+                                    }}
+                                    title="Ver Perfil y Publicaciones"
+                                  >
+                                    Ver Perfil
+                                  </button>
+                                  <button
+                                    className="action-password-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenPasswordModal(u);
+                                    }}
+                                    title={`Modificar Contraseña de ${getUserFullName(u)}`}
+                                  >
+                                    🔑 Clave
+                                  </button>
+                                  <button
+                                    className="action-delete-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRequestDelete(u, u.role);
+                                    }}
+                                    title={`Eliminar ${u.role === 'restaurant' ? 'Restaurante' : (u.role === 'driver' ? 'Conductor' : (u.role === 'employee' ? 'Empleado' : 'Usuario'))}`}
+                                  >
+                                    🗑️ Eliminar
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2044,6 +2906,7 @@ function PanelMaster() {
                           <td colSpan="6" className="empty-table-cell">No se encontraron usuarios.</td>
                         </tr>
                       )}
+
                     </tbody>
                   </table>
                 </div>
@@ -2589,6 +3452,15 @@ function PanelMaster() {
                       <span className="stat-label">Estado:</span>
                       <span className="status-pill green">● Verificado</span>
                     </div>
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        className="action-delete-btn"
+                        onClick={() => handleRequestDelete(emp, 'employee')}
+                        title={`Eliminar empleado ${emp.name}`}
+                      >
+                        🗑️ Eliminar Empleado
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -2973,6 +3845,7 @@ function PanelMaster() {
                       <th>DISPOSITIVOS ALCANZADOS</th>
                       <th>ESTADO</th>
                       <th>FECHA / HORA</th>
+                      <th style={{ textAlign: 'center' }}>ACCIONES</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3006,10 +3879,29 @@ function PanelMaster() {
                           <td>
                             <span className="date-time-cell">{formatDateTime(item.created_at)}</span>
                           </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              className="action-delete-btn"
+                              onClick={() => setBroadcastToDelete(item)}
+                              title="Eliminar esta difusión del historial"
+                              style={{
+                                padding: '0.35rem 0.65rem',
+                                fontSize: '0.78rem',
+                                borderRadius: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </td>
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan="7" className="empty-table-cell">Aún no se han enviado difusiones.</td></tr>
+                      <tr><td colSpan="8" className="empty-table-cell">Aún no se han enviado difusiones.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -3018,7 +3910,423 @@ function PanelMaster() {
           </section>
         )}
 
-        {/* MASTER FOOTER */}
+        {/* TAB 8: MODERACIÓN DE CHAT PÚBLICO (REQUISITO 8) */}
+        {activeTab === 'public_chat' && (
+          <section className="master-section">
+            <div className="section-header-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h2 className="master-section-title">🛡️ Moderación en Tiempo Real del Chat Público</h2>
+                <p className="master-section-subtitle" style={{ color: '#94a3b8', fontSize: '0.88rem', margin: '0.25rem 0 0 0' }}>
+                  Supervisa y filtra mensajes de la comunidad. Aprueba contenidos seguros o bloquea y elimina mensajes ofensivos, agresiones o spam. Las eliminaciones se replican en milisegundos en todas las apps físicas.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-refresh-history"
+                  onClick={handleAutoModerateChat}
+                  disabled={isAutoModeratingChat}
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    borderColor: '#b91c1c',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontWeight: '700'
+                  }}
+                  title="Escanea y purga automáticamente todos los mensajes altamente ofensivos"
+                >
+                  {isAutoModeratingChat ? '⏳ Purgando...' : '🤖 Auto-Moderar Chat'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-refresh-history"
+                  onClick={fetchPublicMessages}
+                  disabled={loadingPublicMessages}
+                >
+                  {loadingPublicMessages ? 'Cargando...' : '🔄 Refrescar'}
+                </button>
+              </div>
+            </div>
+
+            {/* KPI STATS ROW */}
+            <div className="chat-moderation-kpis-grid">
+              <div className="chat-kpi-item" onClick={() => setChatModerationFilter('all')} style={{ cursor: 'pointer' }}>
+                <span className="chat-kpi-num">{publicMessagesList.length}</span>
+                <span className="chat-kpi-label">Mensajes Totales</span>
+              </div>
+              <div className="chat-kpi-item toxic" onClick={() => setChatModerationFilter('toxic')} style={{ cursor: 'pointer' }}>
+                <span className="chat-kpi-num" style={{ color: '#f87171' }}>
+                  {publicMessagesList.filter((m) => !m.isApproved && !m.isOfficial && m.analysis?.level === 'toxic').length}
+                </span>
+                <span className="chat-kpi-label">🔴 Ofensivos / Tóxicos</span>
+              </div>
+              <div className="chat-kpi-item suspicious" onClick={() => setChatModerationFilter('flagged')} style={{ cursor: 'pointer' }}>
+                <span className="chat-kpi-num" style={{ color: '#fbbf24' }}>
+                  {publicMessagesList.filter((m) => !m.isApproved && !m.isOfficial && m.analysis?.level === 'suspicious').length}
+                </span>
+                <span className="chat-kpi-label">🟡 Sospechosos / Enlaces</span>
+              </div>
+              <div className="chat-kpi-item safe" onClick={() => setChatModerationFilter('approved')} style={{ cursor: 'pointer' }}>
+                <span className="chat-kpi-num" style={{ color: '#34d399' }}>
+                  {publicMessagesList.filter((m) => m.isApproved && !m.isOfficial).length}
+                </span>
+                <span className="chat-kpi-label">✅ Aprobados por Master</span>
+              </div>
+            </div>
+
+            {/* CONTROLS BAR: SEARCH AND FILTER BUTTONS */}
+            <div className="table-controls-bar" style={{ marginTop: '1.5rem', marginBottom: '1.25rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div className="search-box-wrapper" style={{ flex: '1', minWidth: '260px', position: 'relative' }}>
+                <span className="search-icon" style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)' }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Buscar en el chat por texto, remitente o correo..."
+                  className="users-search-input"
+                  style={{ width: '100%', paddingLeft: '2.4rem' }}
+                  value={chatSearchQuery}
+                  onChange={(e) => setChatSearchQuery(e.target.value)}
+                />
+                {chatSearchQuery && (
+                  <button className="clear-search-btn" onClick={() => setChatSearchQuery('')}>✕</button>
+                )}
+              </div>
+
+              <div className="filters-group" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`filter-chip ${chatModerationFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setChatModerationFilter('all')}
+                >
+                  Todos ({publicMessagesList.length})
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${chatModerationFilter === 'flagged' ? 'active' : ''}`}
+                  onClick={() => setChatModerationFilter('flagged')}
+                  style={{
+                    borderColor: chatModerationFilter === 'flagged' ? '#ef4444' : undefined,
+                    color: chatModerationFilter === 'flagged' ? '#ef4444' : undefined
+                  }}
+                >
+                  ⚠️ Alertas ({publicMessagesList.filter((m) => !m.isApproved && !m.isOfficial && (m.analysis?.level === 'toxic' || m.analysis?.level === 'suspicious')).length})
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${chatModerationFilter === 'toxic' ? 'active' : ''}`}
+                  onClick={() => setChatModerationFilter('toxic')}
+                  style={{
+                    borderColor: chatModerationFilter === 'toxic' ? '#ef4444' : undefined,
+                    color: chatModerationFilter === 'toxic' ? '#f87171' : undefined
+                  }}
+                >
+                  🔴 Tóxicos ({publicMessagesList.filter((m) => !m.isApproved && !m.isOfficial && m.analysis?.level === 'toxic').length})
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${chatModerationFilter === 'approved' ? 'active' : ''}`}
+                  onClick={() => setChatModerationFilter('approved')}
+                  style={{
+                    borderColor: chatModerationFilter === 'approved' ? '#10b981' : undefined,
+                    color: chatModerationFilter === 'approved' ? '#34d399' : undefined
+                  }}
+                >
+                  ✅ Aprobados ({publicMessagesList.filter((m) => m.isApproved && !m.isOfficial).length})
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${chatModerationFilter === 'announcements' ? 'active' : ''}`}
+                  onClick={() => setChatModerationFilter('announcements')}
+                >
+                  📢 Difusiones ({publicMessagesList.filter((m) => m.isOfficial).length})
+                </button>
+              </div>
+            </div>
+
+            {/* MESSAGES MODERATION TABLE */}
+            <div className="users-table-container">
+              <div className="table-wrapper">
+                <table className="master-users-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '130px' }}>ESTADO</th>
+                      <th style={{ width: '220px' }}>REMITENTE</th>
+                      <th>CONTENIDO DEL MENSAJE</th>
+                      <th style={{ width: '160px' }}>FECHA / HORA</th>
+                      <th style={{ textAlign: 'center', width: '260px' }}>ACCIONES DE MODERACIÓN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const filtered = publicMessagesList.filter((item) => {
+                        // Filtro de categoría
+                        if (chatModerationFilter === 'flagged') {
+                          if (item.isApproved || item.isOfficial || (item.analysis?.level !== 'toxic' && item.analysis?.level !== 'suspicious')) return false;
+                        } else if (chatModerationFilter === 'toxic') {
+                          if (item.isApproved || item.isOfficial || item.analysis?.level !== 'toxic') return false;
+                        } else if (chatModerationFilter === 'approved') {
+                          if (!item.isApproved || item.isOfficial) return false;
+                        } else if (chatModerationFilter === 'announcements') {
+                          if (!item.isOfficial) return false;
+                        }
+
+                        // Filtro de búsqueda
+                        if (chatSearchQuery.trim()) {
+                          const q = chatSearchQuery.toLowerCase().trim();
+                          const textMatch = (item.text || '').toLowerCase().includes(q);
+                          const nameMatch = (item.sender_name || '').toLowerCase().includes(q);
+                          const emailMatch = (item.from_email || '').toLowerCase().includes(q);
+                          return textMatch || nameMatch || emailMatch;
+                        }
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan="5" className="empty-table-cell" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+                              <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>💬</div>
+                              <h4 style={{ color: '#ffffff', margin: '0 0 0.25rem 0' }}>No se encontraron mensajes</h4>
+                              <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+                                {chatSearchQuery ? 'No hay resultados que coincidan con la búsqueda.' : 'No hay mensajes en este filtro de moderación.'}
+                              </p>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filtered.map((msg) => {
+                        const isToxic = !msg.isApproved && !msg.isOfficial && msg.analysis?.level === 'toxic';
+                        const isSuspicious = !msg.isApproved && !msg.isOfficial && msg.analysis?.level === 'suspicious';
+                        const isApproved = msg.isApproved && !msg.isOfficial;
+                        const isOfficial = msg.isOfficial;
+
+                        return (
+                          <tr
+                            key={msg.id}
+                            style={{
+                              background: isToxic
+                                ? 'rgba(239, 68, 68, 0.08)'
+                                : isSuspicious
+                                ? 'rgba(245, 158, 11, 0.05)'
+                                : undefined
+                            }}
+                          >
+                            {/* ESTADO */}
+                            <td>
+                              {isOfficial ? (
+                                <span className="role-badge admin">📢 Difusión</span>
+                              ) : isApproved ? (
+                                <span className="role-badge driver" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                  ✓ Aprobado
+                                </span>
+                              ) : isToxic ? (
+                                <span className="role-badge" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)' }}>
+                                  🔴 Tóxico
+                                </span>
+                              ) : isSuspicious ? (
+                                <span className="role-badge" style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+                                  🟡 Alerta
+                                </span>
+                              ) : (
+                                <span className="role-badge" style={{ background: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }}>
+                                  🟢 Seguro
+                                </span>
+                              )}
+                            </td>
+
+                            {/* REMITENTE */}
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                {msg.avatar ? (
+                                  <img
+                                    src={msg.avatar}
+                                    alt={msg.sender_name || 'Avatar'}
+                                    style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <div
+                                    style={{
+                                      width: '34px',
+                                      height: '34px',
+                                      borderRadius: '50%',
+                                      background: isOfficial ? 'linear-gradient(135deg, #2563eb, #06b6d4)' : 'linear-gradient(135deg, #6366f1, #a855f7)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#ffffff',
+                                      fontWeight: '700',
+                                      fontSize: '0.85rem'
+                                    }}
+                                  >
+                                    {(msg.sender_name || 'U')[0].toUpperCase()}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <strong style={{ color: '#ffffff', fontSize: '0.88rem' }}>
+                                    {msg.sender_name || 'Usuario'}
+                                  </strong>
+                                  <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                    {msg.from_email || 'Sin correo'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* MENSAJE & ANÁLISIS */}
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                {/* Audio Player si es audio */}
+                                {msg.media_type === 'audio' && msg.media_url ? (
+                                  <div style={{ margin: '0.25rem 0' }}>
+                                    <audio controls src={msg.media_url} style={{ maxHeight: '36px', width: '240px' }} />
+                                  </div>
+                                ) : null}
+
+                                {/* Texto con términos resaltados */}
+                                {msg.text ? (
+                                  <div style={{ color: '#e2e8f0', fontSize: '0.88rem', lineHeight: '1.45', wordBreak: 'break-word' }}>
+                                    {getHighlightedSegments(msg.text, msg.analysis?.matchedWords || []).map((seg, idx) =>
+                                      seg.isOffensive ? (
+                                        <mark
+                                          key={idx}
+                                          style={{
+                                            background: 'rgba(239, 68, 68, 0.35)',
+                                            color: '#fca5a5',
+                                            padding: '0.1rem 0.25rem',
+                                            borderRadius: '4px',
+                                            fontWeight: '700',
+                                            borderBottom: '2px solid #ef4444'
+                                          }}
+                                          title={`Término detectado: ${seg.text}`}
+                                        >
+                                          {seg.text}
+                                        </mark>
+                                      ) : (
+                                        <span key={idx}>{seg.text}</span>
+                                      )
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.82rem' }}>
+                                    (Sin texto adjunto)
+                                  </span>
+                                )}
+
+                                {/* Motivo de alerta */}
+                                {(isToxic || isSuspicious) && msg.analysis?.reason && (
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      color: isToxic ? '#f87171' : '#fbbf24',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '600',
+                                      background: isToxic ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                                      padding: '0.2rem 0.5rem',
+                                      borderRadius: '6px',
+                                      width: 'fit-content'
+                                    }}
+                                  >
+                                    <span>⚠️</span>
+                                    <span>{msg.analysis.reason}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* FECHA / HORA */}
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ color: '#cbd5e1', fontSize: '0.82rem' }}>
+                                  {formatDateTime(msg.created_at)}
+                                </span>
+                                <span style={{ color: '#64748b', fontSize: '0.74rem' }}>
+                                  🕒 {formatTimeAgo(msg.created_at)}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* ACCIONES */}
+                            <td>
+                              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                {/* Botón Aprobar */}
+                                {!isOfficial && !isApproved && (
+                                  <button
+                                    type="button"
+                                    className="chip-btn"
+                                    onClick={() => handleApproveChatMessage(msg.id)}
+                                    style={{
+                                      background: 'rgba(16, 185, 129, 0.15)',
+                                      borderColor: 'rgba(16, 185, 129, 0.4)',
+                                      color: '#34d399',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '700',
+                                      padding: '0.3rem 0.6rem',
+                                      cursor: 'pointer'
+                                    }}
+                                    title="Aprobar y marcar como seguro"
+                                  >
+                                    ✓ Aprobar
+                                  </button>
+                                )}
+
+                                {/* Botón Bloquear y Eliminar */}
+                                {!isOfficial && (
+                                  <button
+                                    type="button"
+                                    className="chip-btn"
+                                    onClick={() => setDeletingChatMessage(msg)}
+                                    style={{
+                                      background: 'rgba(239, 68, 68, 0.15)',
+                                      borderColor: 'rgba(239, 68, 68, 0.4)',
+                                      color: '#f87171',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '700',
+                                      padding: '0.3rem 0.6rem',
+                                      cursor: 'pointer'
+                                    }}
+                                    title="Bloquear y eliminar en tiempo real"
+                                  >
+                                    🚫 Bloquear
+                                  </button>
+                                )}
+
+                                {/* Botón Suspender Usuario */}
+                                {!isOfficial && msg.from_email && (
+                                  <button
+                                    type="button"
+                                    className="chip-btn"
+                                    onClick={() => setSuspendingUserTarget({ email: msg.from_email, name: msg.sender_name })}
+                                    style={{
+                                      background: 'rgba(147, 51, 234, 0.15)',
+                                      borderColor: 'rgba(147, 51, 234, 0.4)',
+                                      color: '#c084fc',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '700',
+                                      padding: '0.3rem 0.6rem',
+                                      cursor: 'pointer'
+                                    }}
+                                    title="Suspender cuenta del usuario infractor"
+                                  >
+                                    ⛔ Suspender
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
         <footer className="master-footer">
           <div className="master-footer-content">
             <span className="version-tag">⚡ LANDA v1.0.0</span>
@@ -3184,14 +4492,47 @@ function PanelMaster() {
                   </span>
                 </div>
               </div>
-              <button className="close-modal-btn" onClick={() => setSelectedUserProfile(null)}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
+                  className="action-password-btn"
+                  onClick={() => handleOpenPasswordModal(selectedUserProfile)}
+                  title="Modificar Contraseña de esta cuenta"
+                >
+                  🔑 Modificar Clave
+                </button>
+                <button
+                  className="action-delete-btn"
+                  onClick={() => handleRequestDelete(selectedUserProfile, selectedUserProfile.role)}
+                  title="Eliminar esta cuenta definitivamente"
+                >
+                  🗑️ Eliminar Cuenta
+                </button>
+                <button className="close-modal-btn" onClick={() => setSelectedUserProfile(null)}>✕</button>
+              </div>
             </div>
 
             {/* Quick Metrics Bar */}
             <div className="user-modal-metrics-bar">
-              <div className="modal-metric-chip">
+              <div className="modal-metric-chip" style={{ position: 'relative' }}>
                 <span className="chip-label">Puntos Landa</span>
-                <span className="chip-value gold">★ {(selectedUserProfile.points || 0).toLocaleString()}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span className="chip-value gold">★ {(selectedUserProfile.points || 0).toLocaleString()}</span>
+                  <button
+                    className="chip-btn active"
+                    style={{
+                      padding: '0.15rem 0.45rem',
+                      fontSize: '0.72rem',
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                    title="Modificar o eliminar puntos de este usuario"
+                    onClick={() => handleOpenPointsModal(selectedUserProfile)}
+                  >
+                    ⚡ Puntos
+                  </button>
+                </div>
               </div>
 
               <div className="modal-metric-chip" style={{ position: 'relative' }}>
@@ -3220,6 +4561,28 @@ function PanelMaster() {
                       ⚡ Bono
                     </button>
                   )}
+                </div>
+              </div>
+
+              <div className="modal-metric-chip" style={{ position: 'relative' }}>
+                <span className="chip-label">Seguridad</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span className="chip-value" style={{ color: '#a5b4fc', fontSize: '0.85rem' }}>••••••••</span>
+                  <button
+                    className="chip-btn active"
+                    style={{
+                      padding: '0.15rem 0.45rem',
+                      fontSize: '0.72rem',
+                      background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                    title="Modificar Contraseña de este usuario"
+                    onClick={() => handleOpenPasswordModal(selectedUserProfile)}
+                  >
+                    🔑 Clave
+                  </button>
                 </div>
               </div>
 
@@ -3895,6 +5258,736 @@ function PanelMaster() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DESTRUTIVA PARA ELIMINAR CUENTA (REQUISITO 10) */}
+      {deleteTarget && (
+        <div className="finances-modal-backdrop" onClick={() => !deletingAccount && setDeleteTarget(null)}>
+          <div className="danger-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="danger-modal-header">
+              <div className="danger-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div className="danger-modal-title-box">
+                <h3>¿Eliminar cuenta definitivamente?</h3>
+                <p>Esta acción es permanente y no se podrá deshacer.</p>
+              </div>
+            </div>
+
+            <div className="danger-target-box">
+              <div className="danger-target-row">
+                <div className="danger-target-avatar">
+                  {deleteTarget.record?.avatar ? (
+                    <img src={deleteTarget.record.avatar} alt={deleteTarget.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    deleteTarget.name.substring(0, 2).toUpperCase()
+                  )}
+                </div>
+                <div className="danger-target-info">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="danger-target-name">{deleteTarget.name}</span>
+                    <span className={`role-badge ${deleteTarget.role || 'client'}`}>
+                      {deleteTarget.role === 'admin' && 'Admin Master'}
+                      {deleteTarget.role === 'employee' && 'Empleado'}
+                      {(deleteTarget.role === 'driver' || deleteTarget.role === 'conductor') && 'Conductor'}
+                      {deleteTarget.role === 'restaurant' && 'Restaurante'}
+                      {deleteTarget.role === 'client' && 'Cliente'}
+                    </span>
+                  </div>
+                  <span className="danger-target-meta">{deleteTarget.email}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="danger-impact-alert">
+              <strong>⚠️ Impacto de la eliminación:</strong>
+              {deleteTarget.role === 'restaurant' && (
+                <span> Se eliminarán los datos del restaurante y todos sus platillos asociados en la plataforma.</span>
+              )}
+              {(deleteTarget.role === 'driver' || deleteTarget.role === 'conductor') && (
+                <span> Se eliminará el perfil del conductor, su vehículo, saldo y el historial de transacciones de su billetera operativa.</span>
+              )}
+              {deleteTarget.role === 'employee' && (
+                <span> Se revocará el acceso de empleado y se eliminará su registro de usuario y auditoría.</span>
+              )}
+              {deleteTarget.role !== 'restaurant' && deleteTarget.role !== 'driver' && deleteTarget.role !== 'conductor' && deleteTarget.role !== 'employee' && (
+                <span> Se eliminarán de forma definitiva los datos de perfil y publicaciones registradas del usuario.</span>
+              )}
+            </div>
+
+            <div className="danger-modal-actions">
+              <button
+                type="button"
+                className="btn-cancel-action"
+                disabled={deletingAccount}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                disabled={deletingAccount}
+                onClick={handleConfirmDelete}
+              >
+                {deletingAccount ? 'Eliminando...' : '🗑️ Sí, Eliminar Definitivamente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ADMINISTRACIÓN DE PUNTOS CONDUCTOR Y USUARIO (REQUISITO 1) */}
+      {isPointsModalOpen && pointsTargetUser && (
+        <div className="finances-modal-backdrop" onClick={() => !submittingPoints && setIsPointsModalOpen(false)}>
+          <div className="points-modal-gold-card" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="user-modal-top-header" style={{ borderBottom: '1px solid rgba(251, 191, 36, 0.2)', paddingBottom: '1rem' }}>
+              <div className="user-modal-header-main">
+                <div className="user-modal-avatar-box" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+                  <span>★</span>
+                </div>
+                <div className="user-modal-title-meta">
+                  <div className="user-name-role-row">
+                    <h3 style={{ fontSize: '1.25rem', color: '#ffffff' }}>Administrar Puntos Landa</h3>
+                    <span className={`role-badge ${pointsTargetUser.role || 'client'}`}>
+                      {pointsTargetUser.isDriver ? '🚗 Conductor' : (pointsTargetUser.role === 'restaurant' ? '🏪 Restaurante' : '👤 Cliente')}
+                    </span>
+                  </div>
+                  <span className="user-modal-email-city">
+                    {pointsTargetUser.displayName} • {pointsTargetUser.email || pointsTargetUser.phone || 'Usuario'}
+                  </span>
+                </div>
+              </div>
+              <button
+                className="close-modal-btn"
+                disabled={submittingPoints}
+                onClick={() => setIsPointsModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Current Balance Box */}
+            <div style={{ padding: '1.25rem 0' }}>
+              <div className="points-balance-highlight-box">
+                <div>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block' }}>
+                    Saldo Actual de Puntos
+                  </span>
+                  <div className="points-val-huge">
+                    ★ {pointsTargetUser.currentPoints.toLocaleString()} <small>pts</small>
+                  </div>
+                </div>
+                <div>
+                  {pointsOperationType === 'add' && pointsAmountInput && parseInt(pointsAmountInput, 10) > 0 && (
+                    <span className="points-projected-pill" style={{ color: '#34d399', borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                      ➔ Nuevo Saldo: {(pointsTargetUser.currentPoints + (parseInt(pointsAmountInput, 10) || 0)).toLocaleString()} pts
+                    </span>
+                  )}
+                  {pointsOperationType === 'subtract' && pointsAmountInput && parseInt(pointsAmountInput, 10) > 0 && (
+                    <span className="points-projected-pill" style={{ color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                      ➔ Nuevo Saldo: {Math.max(0, pointsTargetUser.currentPoints - (parseInt(pointsAmountInput, 10) || 0)).toLocaleString()} pts
+                    </span>
+                  )}
+                  {pointsOperationType === 'set' && pointsAmountInput !== '' && !isNaN(parseInt(pointsAmountInput, 10)) && (
+                    <span className="points-projected-pill" style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)' }}>
+                      ➔ Nuevo Saldo: {Math.max(0, parseInt(pointsAmountInput, 10) || 0).toLocaleString()} pts
+                    </span>
+                  )}
+                  {pointsOperationType === 'reset' && (
+                    <span className="points-projected-pill" style={{ color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+                      ➔ Nuevo Saldo: 0 pts (Reseteo)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Selector de Modo de Operación */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600', display: 'block', marginBottom: '0.5rem' }}>
+                  Operación a Realizar:
+                </label>
+                <div className="points-operation-tabs-grid">
+                  <button
+                    type="button"
+                    className={`points-op-btn add ${pointsOperationType === 'add' ? 'active' : ''}`}
+                    onClick={() => {
+                      setPointsOperationType('add');
+                      if (pointsReasonInput.includes('Eliminación') || pointsReasonInput.includes('Reseteo')) {
+                        setPointsReasonInput(pointsTargetUser.isDriver ? 'Bono de puntos por desempeño' : 'Recompensa de fidelidad');
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: '1.1rem' }}>➕</span>
+                    <span>Sumar Puntos</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`points-op-btn subtract ${pointsOperationType === 'subtract' ? 'active' : ''}`}
+                    onClick={() => {
+                      setPointsOperationType('subtract');
+                      setPointsReasonInput('Deducción o canje de puntos por administración');
+                    }}
+                  >
+                    <span style={{ fontSize: '1.1rem' }}>➖</span>
+                    <span>Restar Puntos</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`points-op-btn set ${pointsOperationType === 'set' ? 'active' : ''}`}
+                    onClick={() => {
+                      setPointsOperationType('set');
+                      setPointsReasonInput('Ajuste de puntos exactos por administración');
+                    }}
+                  >
+                    <span style={{ fontSize: '1.1rem' }}>⚙️</span>
+                    <span>Fijar Valor</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`points-op-btn reset ${pointsOperationType === 'reset' ? 'active' : ''}`}
+                    onClick={() => {
+                      setPointsOperationType('reset');
+                      setPointsReasonInput('Eliminación / reseteo de puntos acumulados');
+                    }}
+                  >
+                    <span style={{ fontSize: '1.1rem' }}>🗑️</span>
+                    <span>Resetear a 0</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Presets Rápidos si la operación es Sumar o Fijar */}
+              {pointsOperationType !== 'reset' && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'block', marginBottom: '0.4rem' }}>
+                    Valores Rápidos:
+                  </label>
+                  <div className="points-preset-row">
+                    {[50, 100, 250, 500, 1000, 2500].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        className={`points-preset-chip ${pointsAmountInput === String(val) ? 'active' : ''}`}
+                        onClick={() => setPointsAmountInput(String(val))}
+                      >
+                        {pointsOperationType === 'add' ? `+${val} pts` : `${val} pts`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Input de Puntos */}
+              {pointsOperationType !== 'reset' ? (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600', display: 'block', marginBottom: '0.4rem' }}>
+                    {pointsOperationType === 'add' && 'Cantidad de Puntos a Sumar:'}
+                    {pointsOperationType === 'subtract' && 'Cantidad de Puntos a Deducir:'}
+                    {pointsOperationType === 'set' && 'Nuevo Total de Puntos Exacto:'}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="broadcast-text-input"
+                    style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fbbf24' }}
+                    placeholder="Ej: 100"
+                    value={pointsAmountInput}
+                    onChange={(e) => setPointsAmountInput(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '10px',
+                    padding: '0.9rem 1.1rem',
+                    marginBottom: '1.25rem',
+                    color: '#fca5a5',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  ⚠️ <strong>Confirmación de Reseteo:</strong> Esta opción eliminará todos los puntos acumulados por <strong>{pointsTargetUser.displayName}</strong>, dejando su contador exactamente en <strong>0 pts</strong>.
+                </div>
+              )}
+
+              {/* Input de Motivo */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600', display: 'block', marginBottom: '0.4rem' }}>
+                  Motivo / Razón del Ajuste (Para Auditoría):
+                </label>
+                <input
+                  type="text"
+                  className="broadcast-text-input"
+                  placeholder="Ej: Recompensa por fidelidad o bono conductor"
+                  value={pointsReasonInput}
+                  onChange={(e) => setPointsReasonInput(e.target.value)}
+                />
+              </div>
+
+              {/* Acciones */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-cancel-action"
+                  disabled={submittingPoints}
+                  onClick={() => setIsPointsModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="chip-btn active"
+                  disabled={submittingPoints || (pointsOperationType !== 'reset' && (!pointsAmountInput || parseInt(pointsAmountInput, 10) <= 0))}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: pointsOperationType === 'reset'
+                      ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                      : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#ffffff',
+                    fontWeight: '700',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: (submittingPoints || (pointsOperationType !== 'reset' && !pointsAmountInput)) ? 'not-allowed' : 'pointer',
+                    opacity: (submittingPoints || (pointsOperationType !== 'reset' && !pointsAmountInput)) ? 0.6 : 1
+                  }}
+                  onClick={handleApplyPointsChange}
+                >
+                  {submittingPoints ? 'Guardando Puntos...' : (pointsOperationType === 'reset' ? '🗑️ Confirmar Reseteo a 0' : '★ Aplicar Cambio de Puntos')}
+                </button>
+              </div>
+
+              {/* Historial Reciente de Puntos */}
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '1.25rem' }}>
+                <h4 style={{ fontSize: '0.92rem', color: '#ffffff', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>📜 Historial de Puntos del Usuario ({userPointsHistory.length})</span>
+                  {loadingUserPointsHistory && <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Consultando...</span>}
+                </h4>
+                {loadingUserPointsHistory ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>
+                    Cargando movimientos de puntos...
+                  </div>
+                ) : userPointsHistory.length > 0 ? (
+                  <div className="points-history-microtable">
+                    {userPointsHistory.map((tx) => {
+                      const isPositive = Number(tx.amount || 0) >= 0;
+                      return (
+                        <div key={tx.id} className="points-tx-item">
+                          <div>
+                            <span className="points-tx-meta-title">
+                              {tx.description || (isPositive ? 'Puntos Acreditados' : 'Puntos Deducidos')}
+                            </span>
+                            <span className="points-tx-meta-desc">
+                              {formatDateTime(tx.created_at)} • Tipo: {tx.type || 'earned'}
+                            </span>
+                          </div>
+                          <span className={isPositive ? 'points-tx-val-green' : 'points-tx-val-red'}>
+                            {isPositive ? `+${tx.amount}` : tx.amount} pts
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>
+                    Este usuario no registra transacciones previas en points_transactions.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN PARA ELIMINAR DIFUSIÓN */}
+      {broadcastToDelete && (
+        <div className="finances-modal-backdrop" onClick={() => !deletingBroadcast && setBroadcastToDelete(null)}>
+          <div className="danger-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="danger-modal-header">
+              <div className="danger-icon-circle">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div className="danger-modal-title-box">
+                <h3>¿Eliminar esta difusión?</h3>
+                <p>Se borrará del historial del Master y de los avisos del sistema.</p>
+              </div>
+            </div>
+
+            <div className="danger-target-box">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className={`role-badge ${broadcastToDelete.type === 'promo' ? 'restaurant' : broadcastToDelete.type === 'alert' ? 'admin' : 'driver'}`}>
+                    {broadcastToDelete.type === 'promo' ? '🎉 Promoción' : broadcastToDelete.type === 'alert' ? '⚡ Alerta' : '📢 Aviso'}
+                  </span>
+                  <strong style={{ color: '#ffffff', fontSize: '0.95rem' }}>{broadcastToDelete.title}</strong>
+                </div>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: '0.2rem 0' }}>{broadcastToDelete.body}</p>
+                <div style={{ display: 'flex', gap: '1rem', color: '#64748b', fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                  <span>👥 Audiencia: {broadcastToDelete.targetLabel || broadcastToDelete.target || 'Todos'}</span>
+                  <span>📅 {formatDateTime(broadcastToDelete.created_at)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="danger-impact-alert">
+              <strong>⚠️ Impacto:</strong>
+              <span> La notificación dejará de figurar en el registro del panel y será purgada de los anuncios activos de LANDA.</span>
+            </div>
+
+            <div className="danger-modal-actions">
+              <button
+                type="button"
+                className="btn-cancel-action"
+                onClick={() => setBroadcastToDelete(null)}
+                disabled={deletingBroadcast}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                onClick={handleConfirmDeleteBroadcast}
+                disabled={deletingBroadcast}
+              >
+                {deletingBroadcast ? 'Eliminando...' : 'Sí, eliminar difusión'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: CONFIRMAR BLOQUEO Y ELIMINACIÓN DE MENSAJE DEL CHAT PÚBLICO */}
+      {deletingChatMessage && (
+        <div className="finances-modal-backdrop" onClick={() => setDeletingChatMessage(null)}>
+          <div className="danger-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="danger-modal-header">
+              <div className="danger-modal-icon-badge" style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: '#ef4444' }}>
+                <span style={{ fontSize: '1.4rem' }}>🚫</span>
+              </div>
+              <div className="danger-modal-title-box">
+                <h3 style={{ color: '#ffffff' }}>¿Bloquear y eliminar este mensaje?</h3>
+                <p>Se eliminará de inmediato de la base de datos y desaparecerá de todas las pantallas en tiempo real.</p>
+              </div>
+            </div>
+
+            <div className="danger-target-box">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="role-badge" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}>
+                    Remitente
+                  </span>
+                  <strong style={{ color: '#ffffff', fontSize: '0.95rem' }}>
+                    {deletingChatMessage.sender_name || 'Usuario'} ({deletingChatMessage.from_email || 'Sin correo'})
+                  </strong>
+                </div>
+                <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '0.65rem 0.85rem', borderRadius: '8px', borderLeft: '3px solid #ef4444' }}>
+                  <p style={{ color: '#fca5a5', fontSize: '0.9rem', margin: 0, fontStyle: 'italic' }}>
+                    "{deletingChatMessage.text || '(Audio o multimedia)'}"
+                  </p>
+                </div>
+                {deletingChatMessage.analysis?.reason && (
+                  <span style={{ color: '#fbbf24', fontSize: '0.78rem', fontWeight: '600' }}>
+                    ⚠️ {deletingChatMessage.analysis.reason}
+                  </span>
+                )}
+                <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                  📅 Enviado: {formatDateTime(deletingChatMessage.created_at)}
+                </span>
+              </div>
+            </div>
+
+            <div className="danger-impact-alert">
+              <strong>⚡ Propagación Instantánea:</strong>
+              <span> Gracias a Supabase Realtime, el mensaje será retirado en caliente de todas las aplicaciones móviles y versiones web conectadas en este mismo instante.</span>
+            </div>
+
+            <div className="danger-modal-actions">
+              <button
+                type="button"
+                className="btn-cancel-action"
+                onClick={() => setDeletingChatMessage(null)}
+                disabled={isDeletingChatMessage}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                onClick={handleConfirmDeleteChatMessage}
+                disabled={isDeletingChatMessage}
+                style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)' }}
+              >
+                {isDeletingChatMessage ? 'Bloqueando...' : 'Sí, bloquear y eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: CONFIRMAR SUSPENSIÓN DE USUARIO INFRACTOR */}
+      {suspendingUserTarget && (
+        <div className="finances-modal-backdrop" onClick={() => setSuspendingUserTarget(null)}>
+          <div className="danger-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="danger-modal-header">
+              <div className="danger-modal-icon-badge" style={{ background: 'rgba(147, 51, 234, 0.2)', borderColor: '#a855f7' }}>
+                <span style={{ fontSize: '1.4rem' }}>⛔</span>
+              </div>
+              <div className="danger-modal-title-box">
+                <h3 style={{ color: '#ffffff' }}>¿Suspender la cuenta de este usuario?</h3>
+                <p>El usuario será inhabilitado temporalmente de la plataforma por conducta inapropiada o lenguaje ofensivo.</p>
+              </div>
+            </div>
+
+            <div className="danger-target-box">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <strong style={{ color: '#ffffff', fontSize: '1rem' }}>
+                  {suspendingUserTarget.name || 'Usuario'}
+                </strong>
+                <span style={{ color: '#c084fc', fontSize: '0.88rem' }}>
+                  ✉️ {suspendingUserTarget.email}
+                </span>
+              </div>
+            </div>
+
+            <div className="danger-impact-alert">
+              <strong>⚠️ Consecuencia:</strong>
+              <span> Su estado en la base de datos pasará a <code>suspended</code>, impidiéndole enviar mensajes en el chat público o tomar servicios hasta que la administración revise su caso.</span>
+            </div>
+
+            <div className="danger-modal-actions">
+              <button
+                type="button"
+                className="btn-cancel-action"
+                onClick={() => setSuspendingUserTarget(null)}
+                disabled={isSuspendingUser}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                onClick={handleConfirmSuspendUser}
+                disabled={isSuspendingUser}
+                style={{ background: 'linear-gradient(135deg, #9333ea, #7e22ce)' }}
+              >
+                {isSuspendingUser ? 'Suspendiendo...' : 'Sí, suspender usuario'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REQUISITO 6: MODAL PARA MODIFICAR CONTRASEÑA (USUARIOS Y MASTER) */}
+      {isPasswordModalOpen && passwordTargetUser && (
+        <div className="finances-modal-backdrop" onClick={() => !submittingPasswordChange && setIsPasswordModalOpen(false)}>
+          <div className="password-modal-card" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header idéntico al de puntos */}
+            <div className="user-modal-top-header" style={{ borderBottom: '1px solid rgba(99, 102, 241, 0.25)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+              <div className="user-modal-header-main">
+                <div className="user-modal-avatar-box" style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', borderColor: '#818cf8' }}>
+                  <span>🔑</span>
+                </div>
+                <div className="user-modal-title-meta">
+                  <div className="user-name-role-row">
+                    <h3 style={{ fontSize: '1.25rem', color: '#ffffff', margin: 0 }}>
+                      {passwordTargetUser.isMaster ? 'Modificar Mi Contraseña Master' : 'Modificar Contraseña'}
+                    </h3>
+                    <span className={`role-badge ${passwordTargetUser.role || 'client'}`}>
+                      {passwordTargetUser.isMaster ? '⭐ Master' : (
+                        passwordTargetUser.role === 'driver' ? '🚗 Conductor' :
+                        passwordTargetUser.role === 'restaurant' ? '🏪 Restaurante' :
+                        passwordTargetUser.role === 'employee' ? '👤 Empleado' : '👤 Cliente'
+                      )}
+                    </span>
+                  </div>
+                  <span className="user-modal-email-city">
+                    {passwordTargetUser.name} • {passwordTargetUser.email || 'Sin correo registrado'}
+                  </span>
+                </div>
+              </div>
+              <button
+                className="close-modal-btn"
+                disabled={submittingPasswordChange}
+                onClick={() => setIsPasswordModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Cuenta Objetivo Highlight Box */}
+            <div className="password-target-highlight-box">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.78rem', color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
+                  Cuenta Seleccionada
+                </span>
+                <span style={{ color: '#ffffff', fontWeight: 700, fontSize: '1rem' }}>
+                  {passwordTargetUser.name}
+                </span>
+                <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
+                  ✉️ {passwordTargetUser.email || 'Sin correo registrado'}
+                </span>
+              </div>
+              <span className={`role-badge ${passwordTargetUser.role || 'client'}`} style={{ textTransform: 'capitalize' }}>
+                {passwordTargetUser.isMaster ? '⭐ Master' : (
+                  passwordTargetUser.role === 'driver' ? '🚗 Conductor' :
+                  passwordTargetUser.role === 'restaurant' ? '🏪 Restaurante' :
+                  passwordTargetUser.role === 'employee' ? '👤 Empleado' : '👤 Cliente'
+                )}
+              </span>
+            </div>
+
+            {/* Nueva Contraseña Input Group */}
+            <div className="password-input-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                  Nueva Contraseña:
+                </label>
+                <button
+                  type="button"
+                  className="password-generate-btn"
+                  onClick={() => {
+                    const pass = generateSecurePassword();
+                    setNewPasswordInput(pass);
+                    setConfirmPasswordInput(pass);
+                    setShowPasswordText(true);
+                  }}
+                  title="Generar clave aleatoria segura de 9 caracteres"
+                >
+                  🎲 Generar Clave Segura
+                </button>
+              </div>
+
+              <div className="password-input-wrapper">
+                <input
+                  type={showPasswordText ? 'text' : 'password'}
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  disabled={submittingPasswordChange}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="password-visibility-btn"
+                  onClick={() => setShowPasswordText(!showPasswordText)}
+                  title={showPasswordText ? 'Ocultar contraseña' : 'Ver contraseña'}
+                >
+                  {showPasswordText ? '🙈' : '👁️'}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirmar Contraseña Input Group */}
+            <div className="password-input-group">
+              <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                Confirmar Contraseña:
+              </label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showPasswordText ? 'text' : 'password'}
+                  value={confirmPasswordInput}
+                  onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                  placeholder="Repite la nueva contraseña"
+                  disabled={submittingPasswordChange}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              {/* Indicador de coincidencia */}
+              {newPasswordInput && confirmPasswordInput && (
+                <div style={{ fontSize: '0.78rem', marginTop: '0.2rem' }}>
+                  {newPasswordInput === confirmPasswordInput ? (
+                    <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Las contraseñas coinciden</span>
+                  ) : (
+                    <span style={{ color: '#ef4444', fontWeight: 600 }}>✗ Las contraseñas no coinciden</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Opciones de entrega para usuarios no-Master */}
+            {!passwordTargetUser.isMaster && (
+              <div style={{ marginTop: '0.5rem', marginBottom: '1.25rem' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '0.45rem' }}>
+                  Canales de Notificación y Entrega Segura:
+                </span>
+
+                <label className="password-channel-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={notifyPasswordViaPush}
+                    onChange={(e) => setNotifyPasswordViaPush(e.target.checked)}
+                    disabled={submittingPasswordChange}
+                    style={{ marginTop: '0.15rem' }}
+                  />
+                  <div>
+                    <span style={{ fontSize: '0.85rem', color: '#f1f5f9', fontWeight: 600, display: 'block' }}>
+                      📲 Enviar al Móvil por Push y Chat Privado
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                      Entrega directa y confidencial al dispositivo del usuario para acceso inmediato.
+                    </span>
+                  </div>
+                </label>
+
+                <label className="password-channel-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={notifyPasswordViaEmail}
+                    onChange={(e) => setNotifyPasswordViaEmail(e.target.checked)}
+                    disabled={submittingPasswordChange || !passwordTargetUser.email}
+                    style={{ marginTop: '0.15rem' }}
+                  />
+                  <div>
+                    <span style={{ fontSize: '0.85rem', color: '#f1f5f9', fontWeight: 600, display: 'block' }}>
+                      ✉️ Correo Oficial de Recuperación Supabase Auth
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                      {passwordTargetUser.email ? `Despachar link oficial de restablecimiento a ${passwordTargetUser.email}` : 'No disponible (sin correo)'}
+                    </span>
+                  </div>
+                </label>
+
+                <div className="danger-impact-alert" style={{ background: 'rgba(99, 102, 241, 0.1)', borderColor: 'rgba(99, 102, 241, 0.3)', marginTop: '0.75rem' }}>
+                  <strong>🔒 Privacidad Absoluta:</strong>
+                  <span style={{ color: '#c7d2fe' }}> Las credenciales viajan exclusivamente a través de Supabase Auth y mensajes privados individuales. Nunca se publican en salas compartidas ni chats públicos.</span>
+                </div>
+              </div>
+            )}
+
+            {/* Acciones del Modal */}
+            <div className="danger-modal-actions" style={{ marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                className="btn-cancel-action"
+                onClick={() => setIsPasswordModalOpen(false)}
+                disabled={submittingPasswordChange}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                onClick={handleApplyPasswordChange}
+                disabled={submittingPasswordChange || !newPasswordInput || (newPasswordInput !== confirmPasswordInput)}
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
+                }}
+              >
+                {submittingPasswordChange ? 'Actualizando...' : '💾 Actualizar Contraseña'}
+              </button>
             </div>
           </div>
         </div>
